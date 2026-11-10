@@ -25,6 +25,27 @@ services:
       # Βάλτε 1 για ένα deploy ώστε να ξαναδημιουργηθούν τα demo δεδομένα (μόνο @demo.gr)
       - key: SEED_RESET
         value: "0"
+      # ---- Ρυθμίσεις που συμπληρώνονται στο Render (Environment) ----
+      # Email (π.χ. Brevo: smtp-relay.brevo.com / Microsoft 365: smtp.office365.com)
+      - key: EMAIL_HOST
+        sync: false
+      - key: EMAIL_HOST_USER
+        sync: false
+      - key: EMAIL_HOST_PASSWORD
+        sync: false
+      - key: DEFAULT_FROM_EMAIL
+        value: "subcontractor.gr <no-reply@subcontractor.gr>"
+      - key: SITE_URL
+        value: "https://subcontractor.gr"
+      # Αρχεία σε Cloudflare R2 ή S3 (προαιρετικό· χωρίς αυτά τα αρχεία χάνονται σε κάθε deploy)
+      - key: AWS_STORAGE_BUCKET_NAME
+        sync: false
+      - key: AWS_ACCESS_KEY_ID
+        sync: false
+      - key: AWS_SECRET_ACCESS_KEY
+        sync: false
+      - key: AWS_S3_ENDPOINT_URL
+        sync: false
       - key: DATABASE_URL
         fromDatabase:
           name: electrobid-db

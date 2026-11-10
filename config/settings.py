@@ -114,7 +114,25 @@ STATICFILES_DIRS = [BASE_DIR / "frontend" / "static"]
 STATIC_ROOT = BASE_DIR / "staticfiles"
 
 MEDIA_URL = "media/"
-MEDIA_ROOT = BASE_DIR / "media"
+# Σε server με persistent disk (π.χ. Render Disk): MEDIA_ROOT=/var/data/media
+MEDIA_ROOT = Path(os.environ.get("MEDIA_ROOT", BASE_DIR / "media"))
+
+# ---- Αποθήκευση αρχείων σε S3 / Cloudflare R2 ----
+# Αν οριστεί AWS_STORAGE_BUCKET_NAME, σχέδια, φωτογραφίες και συνημμένα αποθηκεύονται εκεί
+# (ιδιωτικό bucket· η λήψη περνά πάντα από το API με έλεγχο δικαιωμάτων).
+if os.environ.get("AWS_STORAGE_BUCKET_NAME"):
+    STORAGES = {
+        "default": {"BACKEND": "storages.backends.s3.S3Storage"},
+        "staticfiles": {"BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage"},
+    }
+    AWS_STORAGE_BUCKET_NAME = os.environ["AWS_STORAGE_BUCKET_NAME"]
+    AWS_ACCESS_KEY_ID = os.environ.get("AWS_ACCESS_KEY_ID")
+    AWS_SECRET_ACCESS_KEY = os.environ.get("AWS_SECRET_ACCESS_KEY")
+    AWS_S3_ENDPOINT_URL = os.environ.get("AWS_S3_ENDPOINT_URL") or None  # R2: https://<account>.r2.cloudflarestorage.com
+    AWS_S3_REGION_NAME = os.environ.get("AWS_S3_REGION_NAME", "auto")
+    AWS_DEFAULT_ACL = None
+    AWS_QUERYSTRING_AUTH = True
+    AWS_S3_FILE_OVERWRITE = False
 
 # Μέγιστο μέγεθος ανεβασμένου αρχείου (σχέδια μπορεί να είναι μεγάλα)
 DATA_UPLOAD_MAX_MEMORY_SIZE = 50 * 1024 * 1024
