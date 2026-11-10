@@ -43,6 +43,11 @@ class Job(models.Model):
     bid_deadline = models.DateTimeField("προθεσμία προσφορών", null=True, blank=True)
     start_date = models.DateField("επιθυμητή έναρξη", null=True, blank=True)
     duration_text = models.CharField("εκτιμώμενη διάρκεια", max_length=100, blank=True)
+    class Visibility(models.TextChoices):
+        PUBLIC = "public", "Δημόσια (όλοι οι υπεργολάβοι)"
+        PRIVATE = "private", "Ιδιωτική (μόνο προσκεκλημένοι)"
+
+    visibility = models.CharField("ορατότητα", max_length=10, choices=Visibility.choices, default=Visibility.PUBLIC)
     status = models.CharField(max_length=20, choices=Status.choices, default=Status.DRAFT)
     # Αυξάνεται κάθε φορά που προστίθεται συμπλήρωμα μετά τη δημοσίευση,
     # ώστε να φαίνεται αν μια προσφορά δόθηκε σε παλιότερη έκδοση.
@@ -81,6 +86,25 @@ class Job(models.Model):
     @property
     def accepts_bids(self):
         return self.status == self.Status.OPEN and not self.deadline_passed
+
+
+class JobInvitation(models.Model):
+    """Πρόσκληση υπεργολάβου σε εργασία. Στις ιδιωτικές εργασίες μόνο οι προσκεκλημένοι τη βλέπουν."""
+
+    class Status(models.TextChoices):
+        PENDING = "pending", "Σε αναμονή"
+        DECLINED = "declined", "Απορρίφθηκε"
+
+    job = models.ForeignKey(Job, on_delete=models.CASCADE, related_name="invitations")
+    company = models.ForeignKey("accounts.Company", on_delete=models.CASCADE, related_name="invitations")
+    message = models.TextField(blank=True)
+    status = models.CharField(max_length=10, choices=Status.choices, default=Status.PENDING)
+    notified = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = [("job", "company")]
+        ordering = ["created_at"]
 
 
 def document_upload_to(instance, filename):

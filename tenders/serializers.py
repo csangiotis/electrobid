@@ -63,12 +63,14 @@ class JobListSerializer(serializers.ModelSerializer):
     documents_count = serializers.SerializerMethodField()
     bids_count = serializers.SerializerMethodField()
     my_bid_status = serializers.SerializerMethodField()
+    my_invitation = serializers.SerializerMethodField()
     is_owner = serializers.SerializerMethodField()
 
     class Meta:
         model = Job
         fields = [
-            "id", "title", "category", "category_display", "trades", "region", "region_display",
+            "id", "title", "category", "category_display", "trades", "visibility", "my_invitation",
+            "region", "region_display",
             "location", "required_license", "license_display", "bid_deadline",
             "start_date", "duration_text", "status", "phase", "revision", "published_at",
             "contractor", "boq_count", "documents_count", "bids_count",
@@ -86,6 +88,12 @@ class JobListSerializer(serializers.ModelSerializer):
             return obj.my_bid_status
         user = self.context["request"].user
         return obj.bids.filter(subcontractor=user).values_list("status", flat=True).first()
+
+    def get_my_invitation(self, obj):
+        if hasattr(obj, "my_invitation"):
+            return obj.my_invitation
+        user = self.context["request"].user
+        return obj.invitations.filter(company__user=user).values_list("status", flat=True).first()
 
     def get_boq_count(self, obj):
         if hasattr(obj, "boq_count"):
@@ -108,7 +116,14 @@ class JobDetailSerializer(JobListSerializer):
     awarded = serializers.SerializerMethodField()
 
     class Meta(JobListSerializer.Meta):
-        fields = JobListSerializer.Meta.fields + ["description", "documents", "awarded"]
+        fields = JobListSerializer.Meta.fields + ["description", "documents", "awarded", "invitation"]
+
+    invitation = serializers.SerializerMethodField()
+
+    def get_invitation(self, obj):
+        user = self.context["request"].user
+        inv = obj.invitations.filter(company__user=user).first()
+        return {"status": inv.status, "message": inv.message, "created_at": inv.created_at} if inv else None
 
     def get_awarded(self, obj):
         bid = obj.awarded_bid
@@ -125,7 +140,7 @@ class JobWriteSerializer(serializers.ModelSerializer):
     class Meta:
         model = Job
         fields = [
-            "id", "title", "description", "category", "trades", "region", "location",
+            "id", "title", "description", "category", "trades", "visibility", "region", "location",
             "required_license", "bid_deadline", "start_date", "duration_text",
         ]
 

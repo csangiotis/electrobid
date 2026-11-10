@@ -152,3 +152,50 @@ class NotificationTests(APITestCase):
         job.save()
         self.client.get("/api/notifications")
         self.assertEqual(Notification.objects.filter(kind="bids").count(), 1)  # δεν πέρασαν 10 λεπτά
+
+
+class InvitationTests(APITestCase):
+    def setUp(self):
+        self.gc = make("gc@t.gr", "contractor")
+        self.a = make("a@t.gr", "subcontractor", specialties=["painting"])
+        self.b = make("b@t.gr", "subcontractor", specialties=["plumbing"])
+
+    def test_private_job_only_for_invited(self):
+        job = draft_job(self.gc, visibility="private")
+        self.client.force_authenticate(self.gc)
+        self.assertEqual(self.client.post(f"/api/jobs/{job.id}/publish").status_code, 400)  # χωρίς πρόσκληση
+        r = self.client.post(f"/api/jobs/{job.id}/invitations",
+                             {"company_ids": [self.a.company.id, self.gc.company.id], "message": "Σας περιμένουμε"},
+                             format="json")
+        self.assertEqual([i["company"]["name"] for i in r.data], ["a"])  # εργολάβος δεν προσκαλείται
+        self.assertEqual(Notification.objects.filter(kind="invitation").count(), 0)  # πρόχειρο: όχι ακόμα
+        self.assertEqual(self.client.post(f"/api/jobs/{job.id}/publish").status_code, 200)
+        n = Notification.objects.get(kind="invitation")
+        self.assertEqual(n.user, self.a)
+        self.assertIn("Σας περιμένουμε", n.body)
+        self.assertFalse(Notification.objects.filter(kind="new_job").exists())  # ιδιωτική: όχι γενική ειδοποίηση
+
+        self.client.force_authenticate(self.a)
+        ids = [j["id"] for j in self.client.get("/api/jobs", {"mine": "1"}).data]
+        self.assertEqual(ids, [job.id])  # φαίνεται παρά τη διαφορετική ειδικότητα
+        self.assertEqual(self.client.get(f"/api/jobs/{job.id}").data["invitation"]["status"], "pending")
+        self.client.force_authenticate(self.b)
+        self.assertEqual(self.client.get("/api/jobs").data, [])
+        self.assertEqual(self.client.get(f"/api/jobs/{job.id}").status_code, 404)
+        doc_resp = self.client.get(f"/api/jobs/{job.id}/boq")
+        self.assertEqual(doc_resp.status_code, 404)
+
+    def test_invite_on_open_job_notifies_immediately_and_decline(self):
+        job = draft_job(self.gc, status="open")
+        self.client.force_authenticate(self.gc)
+        self.client.post(f"/api/jobs/{job.id}/invitations", {"company_ids": [self.b.company.id]}, format="json")
+        self.assertEqual(Notification.objects.filter(kind="invitation", user=self.b).count(), 1)
+        self.client.post(f"/api/jobs/{job.id}/invitations", {"company_ids": [self.b.company.id]}, format="json")
+        self.assertEqual(Notification.objects.filter(kind="invitation", user=self.b).count(), 1)  # όχι διπλή
+        self.client.force_authenticate(self.b)
+        self.assertEqual(self.client.post(f"/api/jobs/{job.id}/decline").data["status"], "declined")
+        self.assertTrue(Notification.objects.filter(kind="invitation", user=self.gc).exists())
+        self.client.force_authenticate(self.gc)
+        inv = self.client.get(f"/api/jobs/{job.id}/invitations").data[0]
+        self.assertEqual(inv["status"], "declined")
+        self.assertEqual(self.client.delete(f"/api/jobs/{job.id}/invitations/{inv['id']}").status_code, 204)

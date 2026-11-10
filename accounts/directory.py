@@ -113,7 +113,8 @@ class CompanyProfileSerializer(CompanyCardSerializer):
     def get_open_jobs(self, obj):
         if obj.user.role != User.Role.CONTRACTOR:
             return []
-        jobs = obj.user.jobs.filter(status="open", bid_deadline__gt=timezone.now()).order_by("bid_deadline")
+        jobs = obj.user.jobs.filter(status="open", visibility="public",
+                                    bid_deadline__gt=timezone.now()).order_by("bid_deadline")
         return [{"id": j.id, "title": j.title, "location": j.location or j.get_region_display(),
                  "bid_deadline": j.bid_deadline} for j in jobs[:20]]
 

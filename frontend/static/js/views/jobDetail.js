@@ -3,6 +3,7 @@ import {
   bidBadge, busy, companyLink, confirmDialog, esc, fmt, fromLocalInput, options, parseNum, phaseBadge, state, tradeTags,
   timeLeft, toast, toLocalInput, verifiedMark,
 } from "../ui.js";
+import { invitesPanel } from "./invites.js";
 
 export async function jobDetailView(main, [id], stale) {
   const [job, boq] = await Promise.all([api(`jobs/${id}`), api(`jobs/${id}/boq`)]);
@@ -15,6 +16,7 @@ export async function jobDetailView(main, [id], stale) {
   const tabs = [["overview", "Επισκόπηση"], ["boq", "Προμέτρηση"], ["qa", "Ερωτήσεις"]];
   if (isSub) tabs.push(["bid", "Η προσφορά μου"]);
   if (job.is_owner) tabs.push(["bids", `Προσφορές (${job.bids_count})`]);
+  if (job.is_owner && job.phase === "bidding") tabs.push(["invites", "Προσκλήσεις"]);
   let tab = params.get("tab") || (job.is_owner && job.phase !== "bidding" ? "bids" : "overview");
   if (!tabs.some(([k]) => k === tab)) tab = "overview";
 
@@ -40,12 +42,24 @@ export async function jobDetailView(main, [id], stale) {
     <div><dt>Γραμμές BOQ</dt><dd>${lines.length}</dd></div>
   </dl>
   ${job.awarded ? awardedBanner(job) : ""}
+  ${job.invitation && !job.my_bid_status && job.phase === "bidding" ? `
+    <div class="banner live" id="inv-banner">${job.invitation.status === "declined"
+      ? "Έχετε απορρίψει την πρόσκληση. Μπορείτε ακόμα να δώσετε προσφορά."
+      : `<b>Ο εργολάβος σας προσκάλεσε να δώσετε προσφορά.</b>${job.invitation.message ? ` «${esc(job.invitation.message)}»` : ""}
+        <span class="row tight" style="margin-top:8px"><a class="btn sm primary" href="#/jobs/${job.id}?tab=bid">Δίνω προσφορά</a>
+        <button class="btn sm ghost" id="decline">Δεν ενδιαφέρομαι</button></span>`}</div>` : ""}
+  ${job.visibility === "private" ? `<p class="muted small">🔒 Ιδιωτική εργασία: τη βλέπουν μόνο οι προσκεκλημένοι.</p>` : ""}
   <nav class="tabs">${tabs.map(([k, t]) => `<a href="#/jobs/${id}?tab=${k}" class="${k === tab ? "active" : ""}">${esc(t)}</a>`).join("")}</nav>
   <section id="tab"></section>`;
 
   if (job.is_owner) ownerActions(main.querySelector("#owner-actions"), job);
+  main.querySelector("#decline")?.addEventListener("click", async (e) => {
+    if (!(await confirmDialog("Να ενημερωθεί ο εργολάβος ότι δεν θα δώσετε προσφορά;", { ok: "Δεν ενδιαφέρομαι" }))) return;
+    busy(e.target, async () => { await api(`jobs/${id}/decline`, { method: "POST" }); dispatchEvent(new HashChangeEvent("hashchange")); });
+  });
   const el = main.querySelector("#tab");
-  const views = { overview, boq: boqTab, qa: questions, bid: myBid, bids: compare };
+  const views = { overview, boq: boqTab, qa: questions, bid: myBid, bids: compare,
+    invites: (box) => { box.innerHTML = `<div class="panel narrow" id="inv"></div>`; return invitesPanel(box.querySelector("#inv"), job); } };
   await views[tab](el, job, boq, stale);
 }
 

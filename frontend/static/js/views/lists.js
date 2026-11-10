@@ -10,6 +10,8 @@ function jobCard(j) {
       <span class="tag">${esc(j.category_display)}</span>
       ${j.my_bid_status ? bidBadge(j.my_bid_status) : ""}
       ${j.is_owner ? `<span class="badge muted">Δική σας</span>` : ""}
+      ${j.my_invitation === "pending" && !j.my_bid_status ? `<span class="badge live">Πρόσκληση</span>` : ""}
+      ${j.visibility === "private" ? `<span class="badge muted" title="Μόνο για προσκεκλημένους">🔒 Ιδιωτική</span>` : ""}
     </div>
     <h3>${esc(j.title)}</h3>
     ${j.trades?.length ? `<div class="chips static">${tradeTags(j.trades, 3)}</div>` : ""}

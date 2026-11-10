@@ -3,7 +3,7 @@ from datetime import timedelta
 
 from django.conf import settings
 from django.db import transaction
-from django.db.models import Count, OuterRef, Q, Subquery
+from django.db.models import Count, Exists, OuterRef, Q, Subquery
 from django.http import FileResponse, HttpResponse
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
@@ -18,7 +18,7 @@ from accounts.textsearch import matches
 from . import events
 from .boq_import import BOQImportError, parse_boq
 from .comparison import build_comparison, comparison_xlsx
-from .models import Bid, BidLine, BOQItem, Job, JobDocument, JobQuestion
+from .models import Bid, BidLine, BOQItem, Job, JobDocument, JobInvitation, JobQuestion
 from .serializers import (
     BidSerializer, BidWriteSerializer, BOQItemSerializer,
     BOQWriteItemSerializer, JobDetailSerializer, JobDocumentSerializer,
@@ -41,6 +41,17 @@ def _require_subcontractor(user):
         raise PermissionDenied("Μόνο υπεργολάβοι μπορούν να δίνουν προσφορές.")
 
 
+def visible_jobs(user, qs=None):
+    """Εργασίες που μπορεί να δει ο χρήστης: δικές του, δημόσιες δημοσιευμένες,
+    ιδιωτικές όπου έχει πρόσκληση ή ήδη προσφορά."""
+    qs = Job.objects.all() if qs is None else qs
+    invited = JobInvitation.objects.filter(job=OuterRef("pk"), company__user=user)
+    has_bid = Bid.objects.filter(job=OuterRef("pk"), subcontractor=user)
+    return qs.annotate(_inv=Exists(invited), _bid=Exists(has_bid)).filter(
+        Q(contractor=user)
+        | (~Q(status=Job.Status.DRAFT) & (Q(visibility=Job.Visibility.PUBLIC) | Q(_inv=True) | Q(_bid=True))))
+
+
 class JobViewSet(viewsets.ModelViewSet):
     """
     Εργασίες. Η προεπιλεγμένη λίστα είναι το marketplace (ανοιχτές εργασίες).
@@ -60,10 +71,13 @@ class JobViewSet(viewsets.ModelViewSet):
             my_bid_status=Subquery(
                 Bid.objects.filter(job=OuterRef("pk"), subcontractor=user).values("status")[:1]
             ),
+            my_invitation=Subquery(
+                JobInvitation.objects.filter(job=OuterRef("pk"), company__user=user).values("status")[:1]
+            ),
         )
+        qs = visible_jobs(user, qs)
         if self.action != "list":
-            # Τα πρόχειρα τα βλέπει μόνο ο ιδιοκτήτης.
-            return qs.filter(Q(contractor=user) | ~Q(status=Job.Status.DRAFT))
+            return qs
 
         params = self.request.query_params
         if params.get("scope") == "mine":
@@ -83,8 +97,8 @@ class JobViewSet(viewsets.ModelViewSet):
             wanted, mine = set(user.company.specialties or []), True
         if wanted:
             # Στο «μόνο τις δικές μου» εμφανίζονται και εργασίες χωρίς δηλωμένη ειδικότητα
-            ids = [pk for pk, trades in qs.values_list("id", "trades")
-                   if wanted & set(trades or []) or (mine and not trades)]
+            ids = [pk for pk, trades, inv in qs.values_list("id", "trades", "my_invitation")
+                   if wanted & set(trades or []) or (mine and (not trades or inv))]
             qs = qs.filter(id__in=ids)
         if params.get("scope") != "mine":
             qs = qs.order_by("bid_deadline")
@@ -165,10 +179,13 @@ class JobViewSet(viewsets.ModelViewSet):
         if errors:
             raise ValidationError({"detail": " ".join(errors)})
         _require_verified(request.user)
+        if job.visibility == Job.Visibility.PRIVATE and not job.invitations.exists():
+            raise ValidationError("Η ιδιωτική εργασία χρειάζεται τουλάχιστον μία πρόσκληση.")
         job.status = Job.Status.OPEN
         job.published_at = timezone.now()
         job.save(update_fields=["status", "published_at", "updated_at"])
         events.job_published(job)
+        events.send_pending_invitations(job)
         return Response(JobDetailSerializer(self.get_object(), context={"request": request}).data)
 
     @action(detail=True, methods=["post"])
@@ -328,6 +345,54 @@ class JobViewSet(viewsets.ModelViewSet):
         events.question_answered(q)
         return Response(QuestionSerializer(q, context={"request": request}).data)
 
+    # --- Προσκλήσεις ---------------------------------------------------------
+    @action(detail=True, methods=["get", "post"])
+    def invitations(self, request, pk=None):
+        job = self._owned()
+        if request.method == "POST":
+            if job.status not in (Job.Status.DRAFT, Job.Status.OPEN) or job.deadline_passed:
+                raise ValidationError("Προσκλήσεις στέλνονται μόνο πριν τη λήξη της προθεσμίας.")
+            ids = request.data.get("company_ids") or []
+            if not isinstance(ids, list) or not ids:
+                raise ValidationError("Επιλέξτε τουλάχιστον έναν υπεργολάβο.")
+            from accounts.models import Company
+
+            companies = Company.objects.filter(id__in=ids, user__role="subcontractor", user__is_active=True)
+            message = (request.data.get("message") or "").strip()[:2000]
+            created = []
+            for c in companies:
+                inv, new = JobInvitation.objects.get_or_create(job=job, company=c, defaults={"message": message})
+                if new:
+                    created.append(inv)
+            if job.status == Job.Status.OPEN:
+                events.send_pending_invitations(job)
+        rows = job.invitations.select_related("company__user").order_by("created_at")
+        bids = dict(job.bids.values_list("subcontractor_id", "status"))
+        return Response([{
+            "id": i.id, "company": {"id": i.company.id, "name": i.company.name, "verified": i.company.verified,
+                                    "region_display": i.company.get_region_display()},
+            "status": i.status, "notified": i.notified, "bid_status": bids.get(i.company.user_id),
+            "created_at": i.created_at,
+        } for i in rows])
+
+    @action(detail=True, methods=["delete"], url_path=r"invitations/(?P<inv_id>\d+)")
+    def remove_invitation(self, request, pk=None, inv_id=None):
+        job = self._owned()
+        inv = get_object_or_404(job.invitations, pk=inv_id)
+        if job.bids.filter(subcontractor=inv.company.user).exists():
+            raise ValidationError("Ο υπεργολάβος έχει ήδη ξεκινήσει προσφορά· η πρόσκληση δεν αφαιρείται.")
+        inv.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+    @action(detail=True, methods=["post"])
+    def decline(self, request, pk=None):
+        job = self.get_object()
+        inv = get_object_or_404(job.invitations, company__user=request.user)
+        inv.status = JobInvitation.Status.DECLINED
+        inv.save(update_fields=["status"])
+        events.invitation_declined(inv)
+        return Response({"status": inv.status})
+
     # --- Προσφορές (πλευρά εργολάβου) ---------------------------------------
     @action(detail=True, methods=["get"])
     def comparison(self, request, pk=None):
@@ -431,7 +496,7 @@ class DocumentViewSet(mixins.DestroyModelMixin, viewsets.GenericViewSet):
     def download(self, request, pk=None):
         doc = self.get_object()
         job = doc.job
-        if job.status == Job.Status.DRAFT and job.contractor_id != request.user.id:
+        if not visible_jobs(request.user).filter(pk=job.pk).exists():
             raise PermissionDenied()
         try:
             fh = doc.file.open("rb")

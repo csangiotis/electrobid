@@ -2,6 +2,7 @@ import { api, download } from "../api.js";
 import {
   busy, confirmDialog, esc, fmt, formData, fromLocalInput, options, parseNum, toast, toLocalInput, tradeChips,
 } from "../ui.js";
+import { invitesPanel } from "./invites.js";
 
 export async function jobEditView(main, [id], stale) {
   const job = id ? await api(`jobs/${id}`) : null;
@@ -22,6 +23,13 @@ export async function jobEditView(main, [id], stale) {
         <form id="info" class="stack">
           <label>Τίτλος<input name="title" required maxlength="200" value="${esc(job?.title)}" placeholder="π.χ. Υδραυλικά και κλιματισμός κτιρίου γραφείων 4 ορόφων"></label>
           <label>Περιγραφή εργασιών<textarea name="description" rows="5" placeholder="Αντικείμενο, τι περιλαμβάνεται, τι προμηθεύει ο εργολάβος, ιδιαιτερότητες εργοταξίου…">${esc(job?.description)}</textarea></label>
+          <fieldset class="vis-pick">
+            <legend>Ποιοι βλέπουν την εργασία</legend>
+            <label class="check"><input type="radio" name="visibility" value="public" ${job?.visibility !== "private" ? "checked" : ""}>
+              <span><b>Δημόσια</b> · όλοι οι υπεργολάβοι, με ειδοποίηση σε όσους ταιριάζουν σε ειδικότητα και περιοχή</span></label>
+            <label class="check"><input type="radio" name="visibility" value="private" ${job?.visibility === "private" ? "checked" : ""}>
+              <span><b>Ιδιωτική</b> · μόνο οι υπεργολάβοι που θα προσκαλέσετε</span></label>
+          </fieldset>
           <div><label>Ειδικότητες που αφορά η εργασία</label>
             <p class="muted small">Οι υπεργολάβοι των ειδικοτήτων αυτών βλέπουν την εργασία στις «δικές τους».</p>
             <div class="chip-groups compact">${tradeChips("trades", job?.trades || [])}</div></div>
@@ -55,6 +63,10 @@ export async function jobEditView(main, [id], stale) {
           <label class="btn file">Επιλογή αρχείων<input type="file" name="files" multiple hidden></label>
         </form>
         <div id="docs"></div>
+      </section>
+      <section class="panel" id="s-inv">
+        <h2><span class="step">4</span> Προσκλήσεις</h2>
+        <div id="invites"></div>
       </section>` : ""}
     </div>
     ${job ? `<aside class="edit-side"><div class="panel sticky" id="publish"></div></aside>` : ""}
@@ -208,6 +220,9 @@ export async function jobEditView(main, [id], stale) {
       [deadlineOk, job.bid_deadline ? `Προθεσμία: ${fmt.datetime(job.bid_deadline)}` : "Προθεσμία προσφορών (τουλάχιστον 1 ώρα από τώρα)"],
       [lines > 0 && !dirty, lines ? `Προμέτρηση: ${lines} γραμμές${dirty ? " (μη αποθηκευμένη)" : ""}` : "Προμέτρηση με ποσότητες"],
       [docs.length > 0, docs.length ? `${docs.length} έγγραφα` : "Σχέδια (προαιρετικά, συνιστώνται)", true],
+      ...(job.visibility === "private"
+        ? [[invites.length > 0, invites.length ? `${invites.length} προσκλήσεις` : "Τουλάχιστον μία πρόσκληση (ιδιωτική εργασία)"]]
+        : [[invites.length > 0, invites.length ? `${invites.length} προσκλήσεις` : "Προσκλήσεις (προαιρετικές)", true]]),
     ];
     const ready = checks.every(([ok, , optional]) => ok || optional);
     main.querySelector("#publish").innerHTML = `
@@ -224,6 +239,9 @@ export async function jobEditView(main, [id], stale) {
       });
     };
   };
+
+  let invites = [];
+  invites = await invitesPanel(main.querySelector("#invites"), job, { onChange: (l) => { invites = l; renderPublish(); } });
 
   renderBoq();
   renderDocs();

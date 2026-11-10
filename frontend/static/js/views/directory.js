@@ -1,5 +1,6 @@
 import { api } from "../api.js";
 import { esc, fmt, label, options, state, timeLeft, tradeTags, verifiedMark } from "../ui.js";
+import { inviteToJobDialog } from "./invites.js";
 
 // Φωτογραφίες έργων: χρειάζονται το token, οπότε φορτώνονται με fetch ως blob.
 const photoCache = new Map();
@@ -128,6 +129,7 @@ export async function companyView(main, [id], stale) {
       </div>
     </div>
     ${c.is_me ? `<a class="btn" href="#/profile">Επεξεργασία προφίλ</a>` : ""}
+    ${!c.is_me && !isContractor && state.me.role === "contractor" ? `<button class="btn primary" id="invite">Πρόσκληση σε εργασία</button>` : ""}
   </section>
 
   <div class="stats">
@@ -162,5 +164,6 @@ export async function companyView(main, [id], stale) {
       ${c.service_regions.length ? `<h3>Περιοχές δραστηριότητας</h3><div class="chips static">${c.service_regions.map((x) => `<span class="chip-s">${esc(label("regions", x))}</span>`).join("")}</div>` : ""}
     </aside>
   </div>`;
+  main.querySelector("#invite")?.addEventListener("click", () => inviteToJobDialog(c));
   loadPhotos(main);
 }

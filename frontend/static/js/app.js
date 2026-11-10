@@ -109,7 +109,9 @@ async function render() {
     await view(main, m.slice(1), () => seq !== renderSeq);
   } catch (err) {
     if (seq !== renderSeq) return;
-    main.innerHTML = `<div class="empty"><h2>Δεν ήταν δυνατή η φόρτωση</h2><p>${esc(err.message)}</p>
+    const notFound = err.status === 404;
+    main.innerHTML = `<div class="empty"><h2>${notFound ? "Δεν βρέθηκε" : "Δεν ήταν δυνατή η φόρτωση"}</h2>
+      <p>${notFound ? "Η σελίδα δεν υπάρχει ή δεν έχετε πρόσβαση (π.χ. ιδιωτική εργασία χωρίς πρόσκληση)." : esc(err.message)}</p>
       <a class="btn" href="${home()}">Επιστροφή</a></div>`;
   }
   window.scrollTo(0, 0);

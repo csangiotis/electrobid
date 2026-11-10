@@ -86,3 +86,24 @@ def job_awarded(job, awarded_bids):
 def job_cancelled(job):
     notify(_participants(job), Kind.AWARD, f"Ακυρώθηκε: {job.title}",
            f"Ο εργολάβος ακύρωσε την εργασία «{job.title}».", f"#/jobs/{job.id}")
+
+
+def send_pending_invitations(job):
+    """Στέλνει τις προσκλήσεις που δεν έχουν ειδοποιηθεί (μόνο όταν η εργασία είναι δημοσιευμένη)."""
+    if job.status != "open":
+        return
+    pending = list(job.invitations.filter(notified=False).select_related("company__user"))
+    for inv in pending:
+        extra = f"\n\nΜήνυμα: «{inv.message}»" if inv.message else ""
+        notify([inv.company.user], Kind.INVITATION, f"Πρόσκληση: {job.title}",
+               f"Ο εργολάβος {_company(job.contractor)} σας προσκαλεί να δώσετε προσφορά για «{job.title}» "
+               f"({job.location or job.get_region_display()}). Προθεσμία: {job.bid_deadline:%d/%m/%Y %H:%M}.{extra}",
+               f"#/jobs/{job.id}", "Δείτε την εργασία")
+    job.invitations.filter(id__in=[i.id for i in pending]).update(notified=True)
+
+
+def invitation_declined(inv):
+    job = inv.job
+    notify([job.contractor], Kind.INVITATION, f"Απόρριψη πρόσκλησης: {job.title}",
+           f"Η εταιρεία {inv.company.name} δεν θα δώσει προσφορά για «{job.title}».",
+           f"#/jobs/{job.id}?tab=invites")
