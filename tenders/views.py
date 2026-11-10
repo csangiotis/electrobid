@@ -19,7 +19,7 @@ from .boq_import import BOQImportError, parse_boq
 from .comparison import build_comparison, comparison_xlsx
 from .models import Bid, BidLine, BOQItem, Job, JobDocument, JobQuestion
 from .serializers import (
-    LICENSE_ORDER, BidSerializer, BidWriteSerializer, BOQItemSerializer,
+    BidSerializer, BidWriteSerializer, BOQItemSerializer,
     BOQWriteItemSerializer, JobDetailSerializer, JobDocumentSerializer,
     JobListSerializer, JobWriteSerializer, MyBidListSerializer, QuestionSerializer,
 )
@@ -391,13 +391,6 @@ class JobViewSet(viewsets.ModelViewSet):
     def _check_can_bid(job, user):
         if not job.accepts_bids:
             raise ValidationError("Η εργασία δεν δέχεται προσφορές.")
-        company = getattr(user, "company", None)
-        if job.required_license:
-            have = LICENSE_ORDER.get(getattr(company, "license_category", ""), 0)
-            if have < LICENSE_ORDER[job.required_license]:
-                raise ValidationError(
-                    f"Η εργασία απαιτεί άδεια τουλάχιστον {job.get_required_license_display()}."
-                )
 
 
 class DocumentViewSet(mixins.DestroyModelMixin, viewsets.GenericViewSet):

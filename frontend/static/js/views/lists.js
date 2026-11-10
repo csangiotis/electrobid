@@ -17,7 +17,7 @@ function jobCard(j) {
       <div><dt>Τοποθεσία</dt><dd>${esc(j.location || j.region_display)}</dd></div>
       <div><dt>Γραμμές BOQ</dt><dd>${j.boq_count}</dd></div>
       <div><dt>Σχέδια/έγγραφα</dt><dd>${j.documents_count}</dd></div>
-      <div><dt>Άδεια</dt><dd>${j.required_license ? esc(j.license_display) + "+" : "—"}</dd></div>
+      <div><dt>Έναρξη</dt><dd>${j.start_date ? fmt.date(j.start_date) : "—"}</dd></div>
     </dl>
     <div class="job-card-foot">
       <span class="deadline ${urgent ? "urgent" : ""}">Λήξη ${esc(timeLeft(j.bid_deadline))}</span>

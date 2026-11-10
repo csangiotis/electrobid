@@ -26,7 +26,6 @@ export async function jobEditView(main, [id], stale) {
             <label>Κατηγορία<select name="category">${options("job_categories", job?.category || "commercial")}</select></label>
             <label>Περιφέρεια<select name="region" required>${options("regions", job?.region || "attiki")}</select></label>
             <label>Τοποθεσία<input name="location" value="${esc(job?.location)}" placeholder="π.χ. Μαρούσι"></label>
-            <label>Ελάχιστη άδεια υπεργολάβου<select name="required_license">${options("licenses", job?.required_license || "", { empty: "Καμία απαίτηση" })}</select></label>
             <label>Προθεσμία προσφορών<input type="datetime-local" name="bid_deadline" value="${toLocalInput(job?.bid_deadline)}"></label>
             <label>Επιθυμητή έναρξη<input type="date" name="start_date" value="${esc(job?.start_date || "")}"></label>
             <label>Εκτιμώμενη διάρκεια<input name="duration_text" value="${esc(job?.duration_text)}" placeholder="π.χ. 4 μήνες"></label>

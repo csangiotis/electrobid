@@ -129,11 +129,9 @@ class TenderFlowTests(APITestCase):
         self.as_(self.sub2)
         self.assertFalse(self.client.get("/api/my-bids").data[0]["won"])
 
-    def test_license_requirement_blocks_lower_category(self):
-        job_id = self.create_published_job(required_license="B")
-        self.as_(self.sub_low)
-        r = self.client.put(f"/api/jobs/{job_id}/my-bid", {"notes": "x"}, format="json")
-        self.assertEqual(r.status_code, 400)
+    def test_any_subcontractor_can_bid_license_not_checked(self):
+        job_id = self.create_published_job(required_license="D")
+        self.assertEqual(self.bid(self.sub_low, job_id, ["1", "1", "1"]).status_code, 200)
 
     def test_permissions(self):
         job_id = self.create_published_job()

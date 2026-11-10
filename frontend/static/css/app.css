@@ -321,7 +321,7 @@ input.invalid { border-color: var(--bad); background: var(--bad-soft); }
 .priced td:nth-child(2) { min-width: 200px; }
 
 /* ---- Κατάλογος και προφίλ εταιρειών ---- */
-.filters.dir { grid-template-columns: 1fr 190px 210px 180px auto; align-items: center; }
+.filters.dir { grid-template-columns: 1fr 200px 220px auto; align-items: center; }
 .seg { display: inline-flex; background: #e7e9ef; border-radius: 9px; padding: 3px; }
 .seg a { padding: 6px 14px; border-radius: 7px; color: var(--muted); font-weight: 500; font-size: .9rem; }
 .seg a:hover { text-decoration: none; color: var(--ink); }

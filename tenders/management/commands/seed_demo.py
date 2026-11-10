@@ -211,7 +211,7 @@ class Command(BaseCommand):
                                        "(περίπου 3.200 m²): ισχυρά, ασθενή, πυρανίχνευση.\n\n"
                                        "Τα φωτιστικά σώματα τα προμηθεύει ο εργοδότης· ο υπεργολάβος "
                                        "αναλαμβάνει την εγκατάσταση. Εργοτάξιο με γερανό και ανυψωτικό."),
-                          category="commercial", location="Μαρούσι", required_license="C",
+                          category="commercial", location="Μαρούσι",
                           deadline=now + timedelta(days=1), start=now.date() + timedelta(days=30),
                           duration="5 μήνες", docs=["Κάτοψη ισογείου", "Κάτοψη τυπικού ορόφου", "Μονογραμμικό ΓΠΧΤ"])
         for key, terms, days in [("sub1", "30% προκαταβολή, μηνιαίοι λογαριασμοί", 140),
@@ -230,7 +230,7 @@ class Command(BaseCommand):
         # 2) Φωτοβολταϊκό: ανοιχτό, 1 υποβληθείσα προσφορά, 1 ερώτηση
         pv = self.job(gc, "Φωτοβολταϊκό 100 kWp σε στέγη αποθήκης", PV_BOQ,
                       description="Εγκατάσταση φωτοβολταϊκού σταθμού net-billing σε μεταλλική στέγη αποθήκης.",
-                      category="energy", location="Ασπρόπυργος", required_license="B",
+                      category="energy", location="Ασπρόπυργος",
                       deadline=now + timedelta(days=5), start=now.date() + timedelta(days=21),
                       duration="6 εβδομάδες", docs=["Διάταξη πλαισίων στέγης"])
         self.bid(pv, subs["sub2"], [52, 18, 900, "1.35", 38, 2400, 1600], duration_days=35)

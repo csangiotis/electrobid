@@ -35,7 +35,7 @@ export async function jobDetailView(main, [id], stale) {
     <div><dt>Κατηγορία</dt><dd>${esc(job.category_display)}</dd></div>
     <div><dt>Προθεσμία</dt><dd>${fmt.datetime(job.bid_deadline)}<small>${esc(timeLeft(job.bid_deadline))}</small></dd></div>
     <div><dt>Έναρξη</dt><dd>${fmt.date(job.start_date)}${job.duration_text ? `<small>διάρκεια ${esc(job.duration_text)}</small>` : ""}</dd></div>
-    <div><dt>Ελάχιστη άδεια</dt><dd>${job.required_license ? esc(job.license_display) : "—"}</dd></div>
+    <div><dt>Έγγραφα</dt><dd>${job.documents.length}</dd></div>
     <div><dt>Γραμμές BOQ</dt><dd>${lines.length}</dd></div>
   </dl>
   ${job.awarded ? awardedBanner(job) : ""}
@@ -215,17 +215,9 @@ async function myBid(el, job, boq, stale) {
   const editable = job.phase === "bidding";
   const prices = new Map((bid?.lines || []).map((l) => [l.item, l.unit_price]));
   const notes = new Map((bid?.lines || []).map((l) => [l.item, l.note]));
-  const lic = { A: 1, B: 2, C: 3, D: 4 };
-  const myLic = lic[me().company?.license_category] || 0;
-  const blocked = job.required_license && myLic < lic[job.required_license];
 
   if (!bid && !editable) {
     el.innerHTML = `<div class="empty"><h2>Η υποβολή έχει κλείσει</h2><p>Δεν δώσατε προσφορά σε αυτή την εργασία.</p></div>`;
-    return;
-  }
-  if (blocked && !bid) {
-    el.innerHTML = `<div class="empty"><h2>Απαιτείται άδεια ${esc(job.license_display)} ή ανώτερη</h2>
-      <p>Η άδεια στο προφίλ σας δεν καλύπτει την εργασία. Αν έχει αλλάξει, ενημερώστε το <a href="#/profile">προφίλ</a>.</p></div>`;
     return;
   }
   const ro = editable ? "" : "readonly";
@@ -350,8 +342,6 @@ async function myBid(el, job, boq, stale) {
   };
 }
 
-function me() { return state.me; }
-
 // --- Σύγκριση προσφορών (εργολάβος) ---------------------------------------------------
 async function compare(el, job, _boq, stale) {
   const data = await api(`jobs/${job.id}/comparison`);
@@ -383,7 +373,7 @@ async function compare(el, job, _boq, stale) {
     <div class="bidder ${b.rank === 1 && !b.missing_count ? "best" : ""} ${data.awarded_bid_id === b.bid_id ? "awarded" : ""}">
       <div class="rank">#${b.rank}</div>
       <h3>${companyLink(b.company)} ${verifiedMark(b.company)}</h3>
-      <p class="muted small">${esc(b.company.region_display || "")}${b.company.license_display ? ` · Άδεια ${esc(b.company.license_display)}` : ""}</p>
+      <p class="muted small">${esc(b.company.region_display || "")}</p>
       <div class="amount">${fmt.money(b.total)} <small>${diff(b.total)}</small></div>
       <ul class="bidder-facts">
         <li>${b.duration_days ? `${b.duration_days} ημέρες εκτέλεση` : "Χρόνος εκτέλεσης: —"}</li>

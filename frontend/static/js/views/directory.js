@@ -39,7 +39,7 @@ function companyCard(c) {
       ${c.specialties.length > 4 ? `<span class="chip-s more">+${c.specialties.length - 4}</span>` : ""}</div>
     <dl class="facts mini">
       <div><dt>Έργα</dt><dd>${c.projects_count}</dd></div>
-      <div><dt>Άδεια</dt><dd>${c.license_category ? esc(c.license_display) : "—"}</dd></div>
+      <div><dt>Περιοχές</dt><dd>${(c.service_regions || []).length || 1}</dd></div>
       <div><dt>Προσωπικό</dt><dd>${c.employees ?? "—"}</dd></div>
       <div><dt>Εμπειρία</dt><dd>${years !== null ? `${years} έτη` : "—"}</dd></div>
     </dl>
@@ -56,7 +56,7 @@ export async function directoryView(main, _p, stale) {
   <div class="page-head">
     <div><h1>${roleWord(role, true)}</h1>
     <p class="muted">${lookingForSubs
-      ? "Βρείτε υπεργολάβους με βάση την περιοχή, την ειδικότητα, την άδεια και τα έργα τους."
+      ? "Βρείτε υπεργολάβους με βάση την περιοχή, την ειδικότητα και τα έργα τους."
       : "Δείτε εργολάβους, τα έργα τους και τις ανοιχτές εργασίες τους."}</p></div>
     <div class="seg">
       <a href="#/directory?role=subcontractor" class="${lookingForSubs ? "on" : ""}">Υπεργολάβοι</a>
@@ -67,7 +67,6 @@ export async function directoryView(main, _p, stale) {
     <input type="search" name="q" placeholder="Όνομα, πόλη, έργο ή πελάτης" value="${esc(params.get("q") || "")}">
     <select name="region">${options("regions", params.get("region") || "", { empty: "Όλες οι περιοχές" })}</select>
     <select name="specialty">${options("specialties", params.get("specialty") || "", { empty: "Όλες οι ειδικότητες" })}</select>
-    <select name="license">${options("licenses", params.get("license") || "", { empty: "Οποιαδήποτε άδεια" })}</select>
     <label class="check"><input type="checkbox" name="verified" value="1" ${params.get("verified") ? "checked" : ""}> Μόνο επαληθευμένες</label>
   </form>
   <p class="muted small" id="count"></p>
@@ -157,7 +156,6 @@ export async function companyView(main, [id], stale) {
     <aside class="panel">
       <h3>Στοιχεία</h3>
       <dl class="kv">
-        <dt>Άδεια ηλεκτρολόγου</dt><dd>${c.license_category ? esc(c.license_display) : "—"}</dd>
         <dt>Προσωπικό</dt><dd>${c.employees ?? "—"}</dd>
         <dt>Εμπειρία</dt><dd>${years !== null ? `${years} έτη` : "—"}</dd>
       </dl>

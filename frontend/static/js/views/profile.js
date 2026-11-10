@@ -29,14 +29,13 @@ export async function profileView(main, _p, stale) {
         <label>Πόλη<input name="city" value="${esc(c.city)}"></label>
         <label>Τηλέφωνο<input name="phone" value="${esc(c.phone)}"></label>
         <label>Ιστοσελίδα<input name="website" type="url" placeholder="https://" value="${esc(c.website)}"></label>
-        <label>Κατηγορία άδειας<select name="license_category">${options("licenses", c.license_category, { empty: "—" })}</select></label>
         <label>Έτος ίδρυσης<input name="founded_year" type="number" min="1900" max="2100" value="${esc(c.founded_year ?? "")}"></label>
         <label>Προσωπικό (άτομα)<input name="employees" type="number" min="0" value="${esc(c.employees ?? "")}"></label>
       </div>
       <label>Παρουσίαση εταιρείας<textarea name="description" rows="4" placeholder="Τι κάνετε, σε τι είστε δυνατοί, εξοπλισμός, πιστοποιήσεις…">${esc(c.description)}</textarea></label>
       <label>Ειδικότητες</label><div class="chips">${chipBoxes("specialties", "specialties", c.specialties)}</div>
       <label>Περιοχές δραστηριότητας</label><div class="chips">${chipBoxes("regions", "service_regions", c.service_regions)}</div>
-      <p class="muted small">Η επαλήθευση (σήμα ✓) γίνεται από τη διαχείριση της πλατφόρμας μετά από έλεγχο ΑΦΜ και άδειας.</p>
+      <p class="muted small">Η επαλήθευση (σήμα ✓) γίνεται από τη διαχείριση της πλατφόρμας μετά από έλεγχο των στοιχείων της εταιρείας.</p>
       <div class="row end"><button class="btn primary">Αποθήκευση</button></div>
     </form>
     <section class="panel">
@@ -56,7 +55,7 @@ export async function profileView(main, _p, stale) {
     const num = (k) => (fd.get(k) ? Number(fd.get(k)) : null);
     const company = {
       name: fd.get("name"), vat_number: fd.get("vat_number"), region: fd.get("region"), city: fd.get("city"),
-      phone: fd.get("phone"), website: fd.get("website"), license_category: fd.get("license_category"),
+      phone: fd.get("phone"), website: fd.get("website"),
       description: fd.get("description"), employees: num("employees"), founded_year: num("founded_year"),
       specialties: fd.getAll("specialties"), service_regions: fd.getAll("service_regions"),
     };

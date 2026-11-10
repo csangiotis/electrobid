@@ -52,7 +52,6 @@ export async function registerView(main) {
         <label>Έδρα (περιφέρεια)<select name="c_region" required>${options("regions", "attiki")}</select></label>
         <label>Πόλη<input name="c_city"></label>
         <label>Τηλέφωνο<input name="c_phone" type="tel"></label>
-        <label>Κατηγορία άδειας ηλεκτρολόγου<select name="c_license_category">${options("licenses", "", { empty: "—" })}</select></label>
       </div>
       <div class="sub-only">
         <label>Ειδικότητες</label>
