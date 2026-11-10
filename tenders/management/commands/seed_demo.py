@@ -327,7 +327,8 @@ class Command(BaseCommand):
             f"Κωδικός: {PASSWORD}"))
 
     def user(self, email, role, first, last, verified=False, **company):
-        u = User.objects.create_user(email=email, password=PASSWORD, role=role, first_name=first, last_name=last)
+        u = User.objects.create_user(email=email, password=PASSWORD, role=role, first_name=first, last_name=last,
+                                     email_verified=True, terms_accepted_at=timezone.now())
         Company.objects.create(user=u, verified=verified, **company)
         return u
 

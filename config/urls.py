@@ -4,11 +4,19 @@ from django.views.generic import TemplateView
 
 from accounts import api as accounts_api
 from accounts import directory
+from notify import api as notify_api
 
 api_patterns = [
     path("auth/register", accounts_api.register),
     path("auth/login", accounts_api.login),
     path("auth/logout", accounts_api.logout),
+    path("auth/verify-email", accounts_api.verify_email),
+    path("auth/resend-verification", accounts_api.resend_verification),
+    path("auth/password-reset", accounts_api.password_reset),
+    path("auth/password-reset/confirm", accounts_api.password_reset_confirm),
+    path("notifications", notify_api.notifications),
+    path("notifications/read", notify_api.mark_read),
+    path("me/email-prefs", notify_api.email_prefs),
     path("me", accounts_api.me),
     path("choices", accounts_api.choices),
     path("me/projects", directory.my_projects),

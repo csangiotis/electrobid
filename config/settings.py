@@ -38,6 +38,7 @@ INSTALLED_APPS = [
     "rest_framework.authtoken",
     "accounts",
     "tenders",
+    "notify",
 ]
 
 MIDDLEWARE = [
@@ -48,6 +49,7 @@ MIDDLEWARE = [
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
+    "notify.middleware.ScheduledTasksMiddleware",
 ]
 
 # Σερβίρισμα static αρχείων σε παραγωγή (αν είναι εγκατεστημένο το whitenoise)
@@ -122,6 +124,27 @@ ALLOWED_DOCUMENT_EXTENSIONS = {
     ".pdf", ".dwg", ".dxf", ".xlsx", ".xls", ".csv", ".docx", ".doc",
     ".png", ".jpg", ".jpeg", ".zip",
 }
+
+# ---- Email ----
+# Χωρίς EMAIL_HOST τα email εμφανίζονται στο terminal (ανάπτυξη).
+# Για παραγωγή: EMAIL_HOST, EMAIL_PORT (587), EMAIL_HOST_USER, EMAIL_HOST_PASSWORD
+# (π.χ. Brevo: smtp-relay.brevo.com, Microsoft 365: smtp.office365.com).
+SITE_URL = os.environ.get("SITE_URL", "https://subcontractor.gr" if not DEBUG else "http://127.0.0.1:8000")
+SITE_NAME = "subcontractor.gr"
+DEFAULT_FROM_EMAIL = os.environ.get("DEFAULT_FROM_EMAIL", "subcontractor.gr <no-reply@subcontractor.gr>")
+if os.environ.get("EMAIL_HOST"):
+    EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
+    EMAIL_HOST = os.environ["EMAIL_HOST"]
+    EMAIL_PORT = int(os.environ.get("EMAIL_PORT", "587"))
+    EMAIL_HOST_USER = os.environ.get("EMAIL_HOST_USER", "")
+    EMAIL_HOST_PASSWORD = os.environ.get("EMAIL_HOST_PASSWORD", "")
+    EMAIL_USE_TLS = os.environ.get("EMAIL_USE_TLS", "1") == "1"
+    EMAIL_TIMEOUT = 15
+else:
+    EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
+# Η επιβεβαίωση email απαιτείται (για δημοσίευση/υποβολή) μόνο όταν στέλνονται πραγματικά email
+REQUIRE_EMAIL_VERIFICATION = os.environ.get(
+    "REQUIRE_EMAIL_VERIFICATION", "1" if os.environ.get("EMAIL_HOST") else "0") == "1"
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 

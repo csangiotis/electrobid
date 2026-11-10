@@ -48,6 +48,9 @@ class Job(models.Model):
     # ώστε να φαίνεται αν μια προσφορά δόθηκε σε παλιότερη έκδοση.
     revision = models.PositiveIntegerField(default=0)
     published_at = models.DateTimeField(null=True, blank=True)
+    # Σημαίες για τις αυτόματες ειδοποιήσεις (να μη σταλούν δύο φορές)
+    reminder_sent = models.BooleanField(default=False)
+    opened_notified = models.BooleanField(default=False)
     awarded_bid = models.OneToOneField(
         "Bid", null=True, blank=True, on_delete=models.SET_NULL, related_name="+"
     )

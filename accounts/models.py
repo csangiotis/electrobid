@@ -112,6 +112,10 @@ class User(AbstractUser):
     username = None
     email = models.EmailField("email", unique=True)
     role = models.CharField("ρόλος", max_length=20, choices=Role.choices)
+    email_verified = models.BooleanField("email επιβεβαιωμένο", default=False)
+    terms_accepted_at = models.DateTimeField("αποδοχή όρων", null=True, blank=True)
+    # Προτιμήσεις email ανά είδος ειδοποίησης: {"new_job": false, ...}· ό,τι λείπει = ενεργό
+    email_prefs = models.JSONField("προτιμήσεις email", default=dict, blank=True)
 
     USERNAME_FIELD = "email"
     REQUIRED_FIELDS = []
@@ -136,6 +140,8 @@ class Company(models.Model):
     vat_number = models.CharField("ΑΦΜ", max_length=9)
     phone = models.CharField("τηλέφωνο", max_length=30, blank=True)
     city = models.CharField("πόλη", max_length=100, blank=True)
+    address = models.CharField("διεύθυνση έδρας", max_length=200, blank=True)
+    tax_office = models.CharField("ΔΟΥ", max_length=100, blank=True)
     region = models.CharField("έδρα (περιφέρεια)", max_length=40, choices=REGIONS)
     # Περιοχές όπου αναλαμβάνει εργασίες (λίστα κωδικών περιφέρειας)
     service_regions = models.JSONField("περιοχές δραστηριότητας", default=list, blank=True)

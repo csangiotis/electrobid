@@ -6,7 +6,7 @@ const chipBoxes = (list, name, selected) => state.choices[list].map((s) =>
   `<label class="chip"><input type="checkbox" name="${name}" value="${esc(s.value)}" ${selected.includes(s.value) ? "checked" : ""}><span>${esc(s.label)}</span></label>`).join("");
 
 export async function profileView(main, _p, stale) {
-  const [me, projects] = await Promise.all([api("me"), api("me/projects")]);
+  const [me, projects, prefs] = await Promise.all([api("me"), api("me/projects"), api("me/email-prefs")]);
   if (stale()) return;
   state.me = me;
   let list = projects;
@@ -27,6 +27,8 @@ export async function profileView(main, _p, stale) {
         <label>ΑΦΜ<input name="vat_number" required pattern="\\d{9}" value="${esc(c.vat_number)}"></label>
         <label>Έδρα<select name="region">${options("regions", c.region)}</select></label>
         <label>Πόλη<input name="city" value="${esc(c.city)}"></label>
+        <label>Διεύθυνση έδρας<input name="address" value="${esc(c.address)}"></label>
+        <label>ΔΟΥ<input name="tax_office" value="${esc(c.tax_office)}"></label>
         <label>Τηλέφωνο<input name="phone" value="${esc(c.phone)}"></label>
         <label>Ιστοσελίδα<input name="website" type="url" placeholder="https://" value="${esc(c.website)}"></label>
         <label>Έτος ίδρυσης<input name="founded_year" type="number" min="1900" max="2100" value="${esc(c.founded_year ?? "")}"></label>
@@ -38,6 +40,12 @@ export async function profileView(main, _p, stale) {
       <p class="muted small">Η επαλήθευση (σήμα ✓) γίνεται από τη διαχείριση της πλατφόρμας μετά από έλεγχο των στοιχείων της εταιρείας.</p>
       <div class="row end"><button class="btn primary">Αποθήκευση</button></div>
     </form>
+    <section class="panel" id="prefs">
+      <h2>Ειδοποιήσεις με email</h2>
+      <p class="muted small">Οι ειδοποιήσεις εμφανίζονται πάντα στο καμπανάκι. Εδώ επιλέγετε ποιες έρχονται και με email στο ${esc(me.email)}.
+        Τα email λογαριασμού (επιβεβαίωση, κωδικός) στέλνονται πάντα.</p>
+      <div class="prefs">${prefs.map((p) => `<label class="check"><input type="checkbox" data-kind="${esc(p.kind)}" ${p.enabled ? "checked" : ""}> ${esc(p.label)}</label>`).join("")}</div>
+    </section>
     <section class="panel">
       <div class="row wrap"><h2 class="grow">Έργα και εμπειρία <span class="muted">(${list.length})</span></h2>
         <button class="btn primary sm" id="add">+ Προσθήκη έργου</button></div>
@@ -55,7 +63,7 @@ export async function profileView(main, _p, stale) {
     const num = (k) => (fd.get(k) ? Number(fd.get(k)) : null);
     const company = {
       name: fd.get("name"), vat_number: fd.get("vat_number"), region: fd.get("region"), city: fd.get("city"),
-      phone: fd.get("phone"), website: fd.get("website"),
+      phone: fd.get("phone"), website: fd.get("website"), address: fd.get("address"), tax_office: fd.get("tax_office"),
       description: fd.get("description"), employees: num("employees"), founded_year: num("founded_year"),
       specialties: fd.getAll("specialties"), service_regions: fd.getAll("service_regions"),
     };
@@ -66,6 +74,15 @@ export async function profileView(main, _p, stale) {
       if (nameEl) nameEl.textContent = state.me.company.name;
     });
   };
+
+  main.querySelector("#prefs").addEventListener("change", async (e) => {
+    const k = e.target.dataset.kind;
+    if (!k) return;
+    try {
+      await api("me/email-prefs", { method: "PUT", body: { [k]: e.target.checked } });
+      toast(e.target.checked ? "Θα λαμβάνετε email." : "Δεν θα λαμβάνετε email για αυτό.", "ok");
+    } catch (err) { toast(err.message, "error"); e.target.checked = !e.target.checked; }
+  });
 
   const box = main.querySelector("#projects");
   const render = () => {

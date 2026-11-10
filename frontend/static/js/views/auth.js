@@ -17,7 +17,7 @@ export async function loginView(main) {
       <label>Email<input name="email" type="email" required autocomplete="username"></label>
       <label>Κωδικός<input name="password" type="password" required autocomplete="current-password"></label>
       <button class="btn primary block">Σύνδεση</button>
-      <p class="muted center">Νέος χρήστης; <a href="#/register">Δημιουργία λογαριασμού</a></p>
+      <p class="muted center"><a href="#/forgot">Ξεχάσατε τον κωδικό;</a> · Νέος χρήστης; <a href="#/register">Δημιουργία λογαριασμού</a></p>
     </form>
   </section>`;
   const f = main.querySelector("#f");
@@ -52,6 +52,8 @@ export async function registerView(main) {
         <label>Έδρα (περιφέρεια)<select name="c_region" required>${options("regions", "attiki")}</select></label>
         <label>Πόλη<input name="c_city"></label>
         <label>Τηλέφωνο<input name="c_phone" type="tel"></label>
+        <label>Διεύθυνση έδρας<input name="c_address"></label>
+        <label>ΔΟΥ<input name="c_tax_office"></label>
       </div>
       <div class="sub-only">
         <label>Ειδικότητες</label>
@@ -60,6 +62,8 @@ export async function registerView(main) {
         <div class="chips">${state.choices.regions.map((s) =>
           `<label class="chip"><input type="checkbox" name="c_service_regions" value="${esc(s.value)}"><span>${esc(s.label)}</span></label>`).join("")}</div>
       </div>
+      <label class="check terms"><input type="checkbox" name="accept_terms" value="1" required>
+        <span>Αποδέχομαι τους <a href="#/terms" target="_blank">όρους χρήσης</a> και την <a href="#/privacy" target="_blank">πολιτική απορρήτου</a></span></label>
       <button class="btn primary block">Δημιουργία λογαριασμού</button>
       <p class="muted center">Έχετε ήδη λογαριασμό; <a href="#/login">Σύνδεση</a></p>
     </form>
@@ -81,6 +85,7 @@ export async function registerView(main) {
         else body.company[key] = v;
       } else body[k] = v;
     }
+    body.accept_terms = !!body.accept_terms;
     busy(f.querySelector("button.primary"), async () =>
       setSession(await api("auth/register", { method: "POST", body })));
   };

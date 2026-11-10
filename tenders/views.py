@@ -15,6 +15,7 @@ from rest_framework.response import Response
 
 from accounts.textsearch import matches
 
+from . import events
 from .boq_import import BOQImportError, parse_boq
 from .comparison import build_comparison, comparison_xlsx
 from .models import Bid, BidLine, BOQItem, Job, JobDocument, JobQuestion
@@ -28,6 +29,11 @@ from .serializers import (
 def _require_contractor(user):
     if not user.is_contractor:
         raise PermissionDenied("Μόνο εργολάβοι μπορούν να κάνουν αυτή την ενέργεια.")
+
+
+def _require_verified(user):
+    if settings.REQUIRE_EMAIL_VERIFICATION and not user.email_verified:
+        raise PermissionDenied("Επιβεβαιώστε πρώτα το email σας (δείτε το email που σας στείλαμε).")
 
 
 def _require_subcontractor(user):
@@ -158,9 +164,11 @@ class JobViewSet(viewsets.ModelViewSet):
             errors.append("Ορίστε προθεσμία προσφορών τουλάχιστον μία ώρα από τώρα.")
         if errors:
             raise ValidationError({"detail": " ".join(errors)})
+        _require_verified(request.user)
         job.status = Job.Status.OPEN
         job.published_at = timezone.now()
         job.save(update_fields=["status", "published_at", "updated_at"])
+        events.job_published(job)
         return Response(JobDetailSerializer(self.get_object(), context={"request": request}).data)
 
     @action(detail=True, methods=["post"])
@@ -178,8 +186,11 @@ class JobViewSet(viewsets.ModelViewSet):
         job = self._owned()
         if job.status not in (Job.Status.DRAFT, Job.Status.OPEN):
             raise ValidationError("Η εργασία δεν μπορεί να ακυρωθεί.")
+        was_open = job.status == Job.Status.OPEN
         job.status = Job.Status.CANCELLED
         job.save(update_fields=["status", "updated_at"])
+        if was_open:
+            events.job_cancelled(job)
         return Response(JobDetailSerializer(self.get_object(), context={"request": request}).data)
 
     @action(detail=True, methods=["post"])
@@ -192,6 +203,7 @@ class JobViewSet(viewsets.ModelViewSet):
         job.awarded_bid = bid
         job.status = Job.Status.AWARDED
         job.save(update_fields=["awarded_bid", "status", "updated_at"])
+        events.job_awarded(job, [bid])
         return Response(JobDetailSerializer(self.get_object(), context={"request": request}).data)
 
     # --- Προμέτρηση -------------------------------------------------------
@@ -268,6 +280,8 @@ class JobViewSet(viewsets.ModelViewSet):
             for f in files:
                 doc_title = title if (title and len(files) == 1) else os.path.splitext(f.name)[0]
                 created.append(self._store_document(job, f, doc_title, kind))
+        if job.status == Job.Status.OPEN:
+            events.addendum_added(job, len(created))
         return Response(JobDocumentSerializer(created, many=True).data, status=status.HTTP_201_CREATED)
 
     @staticmethod
@@ -298,6 +312,7 @@ class JobViewSet(viewsets.ModelViewSet):
         if len(text) < 5:
             raise ValidationError("Γράψτε την ερώτησή σας.")
         q = JobQuestion.objects.create(job=job, author=request.user, text=text)
+        events.question_asked(q)
         return Response(QuestionSerializer(q, context=ctx).data, status=status.HTTP_201_CREATED)
 
     @action(detail=True, methods=["post"], url_path=r"questions/(?P<qid>\d+)/answer")
@@ -310,6 +325,7 @@ class JobViewSet(viewsets.ModelViewSet):
         q.answer = answer
         q.answered_at = timezone.now()
         q.save(update_fields=["answer", "answered_at"])
+        events.question_answered(q)
         return Response(QuestionSerializer(q, context={"request": request}).data)
 
     # --- Προσφορές (πλευρά εργολάβου) ---------------------------------------
@@ -381,6 +397,7 @@ class JobViewSet(viewsets.ModelViewSet):
         job = self.get_object()
         _require_subcontractor(request.user)
         self._check_can_bid(job, request.user)
+        _require_verified(request.user)
         bid = get_object_or_404(job.bids, subcontractor=request.user)
         if not bid.lines.exclude(unit_price=None).exists():
             raise ValidationError("Συμπληρώστε τιμές πριν την υποβολή.")

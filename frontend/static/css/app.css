@@ -402,3 +402,32 @@ input.invalid { border-color: var(--bad); background: var(--bad-soft); }
   .topbar nav { scrollbar-width: none; }
   .topbar nav::-webkit-scrollbar { display: none; }
 }
+
+/* ---- Ειδοποιήσεις, επιβεβαίωση, νομικά ---- */
+.bell-wrap { position: relative; }
+.bell { position: relative; width: 36px; height: 36px; border-radius: 50%; border: 0; background: rgba(255,255,255,.08); cursor: pointer; display: grid; place-items: center; }
+.bell:hover { background: rgba(255,255,255,.16); }
+.bell svg { width: 19px; height: 19px; fill: #fff; }
+.bell .count { position: absolute; top: -3px; right: -3px; min-width: 18px; height: 18px; padding: 0 4px; border-radius: 9px; background: #e5484d; color: #fff; font-size: .7rem; font-weight: 700; display: grid; place-items: center; }
+.bell-pop { position: absolute; right: 0; top: 44px; width: 360px; max-width: calc(100vw - 24px); background: var(--surface); color: var(--text); border-radius: 10px; box-shadow: 0 16px 40px rgba(0,0,0,.25); z-index: 50; overflow: hidden; }
+.bell-head { display: flex; justify-content: space-between; align-items: center; padding: 12px 14px; border-bottom: 1px solid var(--line); }
+.bell-all { display: block; text-align: center; padding: 10px; border-top: 1px solid var(--line); font-size: .88rem; }
+.link-btn { border: 0; background: none; color: var(--live); cursor: pointer; font: inherit; font-size: .84rem; }
+.pad { padding: 14px; margin: 0; }
+.notif-list { list-style: none; margin: 0; padding: 0; max-height: 380px; overflow-y: auto; }
+.notif-list.full { max-height: none; }
+.notif-list li a { display: flex; flex-direction: column; gap: 2px; padding: 10px 14px; color: var(--text); border-bottom: 1px solid #eef0f4; }
+.notif-list li a:hover { background: #f7f8fa; text-decoration: none; }
+.notif-list li.unread a { background: var(--live-soft); }
+.notif-list li.unread a b::before { content: "● "; color: var(--live); font-size: .7em; vertical-align: 2px; }
+.notif-list .nb { font-size: .86rem; color: var(--ink-2); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.verify-bar { background: var(--warn-soft); color: var(--warn); padding: 8px 24px; text-align: center; font-size: .9rem; border-bottom: 1px solid #f4d79c; }
+.verify-bar .btn { margin-left: 8px; color: var(--warn); border-color: #e9c27a; }
+.auth-title.mini { margin-bottom: 14px; }
+.auth-card h2 { margin-top: 0; }
+.check.terms { align-items: flex-start; }
+.check.terms input { margin-top: 3px; }
+.prefs { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 18px; }
+.legal h2 { margin-top: 22px; }
+.legal ul { padding-left: 20px; }
+@media (max-width: 720px) { .prefs { grid-template-columns: 1fr; } .bell-pop { position: fixed; left: 12px; right: 12px; top: 56px; width: auto; } }

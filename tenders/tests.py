@@ -227,7 +227,7 @@ class AuthTests(APITestCase):
     def test_register_and_login(self):
         r = self.client.post("/api/auth/register", {
             "email": "New@Test.gr", "password": "kalos-kodikos-1", "first_name": "Νίκος",
-            "last_name": "Π.", "role": "subcontractor",
+            "last_name": "Π.", "role": "subcontractor", "accept_terms": True,
             "company": {"name": "Ηλεκτρική ΑΕ", "vat_number": "099999999", "region": "kriti",
                         "license_category": "C", "specialties": ["power", "pv"]},
         }, format="json")
