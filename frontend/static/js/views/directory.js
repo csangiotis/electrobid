@@ -1,6 +1,7 @@
 import { api } from "../api.js";
 import { esc, fmt, label, options, state, timeLeft, tradeTags, verifiedMark } from "../ui.js";
 import { inviteToJobDialog } from "./invites.js";
+import { stars, starsOnly } from "./collab.js";
 
 // Φωτογραφίες έργων: χρειάζονται το token, οπότε φορτώνονται με fetch ως blob.
 const photoCache = new Map();
@@ -33,7 +34,8 @@ function companyCard(c) {
     <div class="company-head">
       <span class="logo">${initials(c.name)}</span>
       <div><h3>${esc(c.name)} ${verifiedMark(c)}</h3>
-      <p class="muted small">${esc([c.city, c.region_display].filter(Boolean).join(", "))}</p></div>
+      <p class="muted small">${esc([c.city, c.region_display].filter(Boolean).join(", "))}</p>
+      <div class="rating-line">${stars(c.rating?.average, c.rating?.count)}</div></div>
     </div>
     ${c.description ? `<p class="clamp">${esc(c.description)}</p>` : ""}
     <div class="chips static">${tradeTags(c.specialties, 4)}</div>
@@ -122,6 +124,7 @@ export async function companyView(main, [id], stale) {
         ${c.verified ? `<span class="badge ok">✓ Επαληθευμένη</span>` : `<span class="badge muted">Μη επαληθευμένη</span>`}</div>
       <h1>${esc(c.name)}</h1>
       <p class="muted">${esc([c.city, c.region_display].filter(Boolean).join(", "))}${c.founded_year ? ` · από το ${c.founded_year}` : ""} · μέλος από ${fmt.date(c.member_since)}</p>
+      <div class="rating-line">${stars(c.reviews.average, c.reviews.count)}</div>
       <div class="row wrap contact">
         ${c.phone ? `<a class="btn sm" href="tel:${esc(c.phone.replace(/\s/g, ""))}">☎ ${esc(c.phone)}</a>` : ""}
         ${website ? `<a class="btn sm ghost" href="${esc(website)}" target="_blank" rel="noopener noreferrer">${esc(website.replace(/^https?:\/\//, ""))} ↗</a>` : ""}
@@ -149,6 +152,11 @@ export async function companyView(main, [id], stale) {
         <div class="panel"><h2>Ανοιχτές εργασίες</h2>
           <ul class="link-list">${c.open_jobs.map((j) => `<li><a href="#/jobs/${j.id}"><b>${esc(j.title)}</b></a>
             <span class="muted small">${esc(j.location)} · λήξη ${esc(timeLeft(j.bid_deadline))}</span></li>`).join("")}</ul></div>` : ""}
+      ${c.reviews.count ? `
+        <div class="panel"><h2>Αξιολογήσεις <span class="muted">(${c.reviews.count})</span></h2>
+          <div class="crit-avg">${Object.values(c.reviews.criteria).map((k) => `<div><span>${esc(k.label)}</span>${starsOnly(k.average)}<b>${String(k.average).replace(".", ",")}</b></div>`).join("")}</div>
+          <ul class="review-list">${c.reviews.items.map((r) => `<li><div class="row tight">${starsOnly(r.rating)}<b>${esc(r.author)}</b>
+            <span class="muted small">· ${esc(r.job)} · ${fmt.date(r.created_at)}</span></div>${r.comment ? `<p>${esc(r.comment)}</p>` : ""}</li>`).join("")}</ul></div>` : ""}
       <h2 class="section">Έργα και εμπειρία</h2>
       ${c.projects.length ? `<div class="projects">${c.projects.map((p) => projectCard(p)).join("")}</div>`
         : `<div class="empty small-empty"><p>${c.is_me ? "Δεν έχετε προσθέσει έργα. Τα έργα είναι ο πιο πειστικός λόγος για να σας επιλέξουν." : "Η εταιρεία δεν έχει προσθέσει έργα ακόμα."}</p>

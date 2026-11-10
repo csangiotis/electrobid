@@ -8,6 +8,7 @@ import { profileView } from "./views/profile.js";
 import { companyView, directoryView } from "./views/directory.js";
 import { forgotView, notifItem, notificationsView, resetView, verifyView } from "./views/account.js";
 import { privacyView, termsView } from "./views/legal.js";
+import { contractView } from "./views/collab.js";
 
 const routes = [
   [/^\/login$/, loginView, { public: true }],
@@ -22,6 +23,7 @@ const routes = [
   [/^\/jobs\/new$/, jobEditView, { role: "contractor" }],
   [/^\/jobs\/(\d+)\/edit$/, jobEditView, { role: "contractor" }],
   [/^\/jobs\/(\d+)$/, jobDetailView],
+  [/^\/jobs\/(\d+)\/contract$/, contractView],
   [/^\/my-jobs$/, myJobsView, { role: "contractor" }],
   [/^\/my-bids$/, myBidsView, { role: "subcontractor" }],
   [/^\/profile$/, profileView],

@@ -17,6 +17,7 @@ from rest_framework.response import Response
 from accounts.textsearch import matches
 
 from . import events
+from .collab import CollaborationMixin
 from .boq_import import BOQImportError, parse_boq
 from .comparison import build_comparison, comparison_xlsx
 from .models import Award, Bid, BidLine, BOQItem, Job, JobDocument, JobInvitation, JobQuestion, boq_sections
@@ -53,7 +54,7 @@ def visible_jobs(user, qs=None):
         | (~Q(status=Job.Status.DRAFT) & (Q(visibility=Job.Visibility.PUBLIC) | Q(_inv=True) | Q(_bid=True))))
 
 
-class JobViewSet(viewsets.ModelViewSet):
+class JobViewSet(CollaborationMixin, viewsets.ModelViewSet):
     """
     Εργασίες. Η προεπιλεγμένη λίστα είναι το marketplace (ανοιχτές εργασίες).
     ?scope=mine επιστρέφει τις εργασίες του εργολάβου, σε όλες τις καταστάσεις.

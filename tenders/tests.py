@@ -342,3 +342,85 @@ class SectionAwardBafoTests(APITestCase):
         self.assertEqual((full["total"], full["original_total"]), (500, 720))
         self.assertEqual(data["bidders"][0]["company"]["name"], "full")
         self.assertEqual(self.client.post(f"/api/jobs/{self.job.id}/award", {"bid_id": full_bid}, format="json").status_code, 200)
+
+
+class CollaborationTests(APITestCase):
+    def setUp(self):
+        from django.core import mail
+        self.mail = mail
+        self.gc = make_user("gc@t.gr", User.Role.CONTRACTOR)
+        self.el = make_user("el@t.gr", User.Role.SUBCONTRACTOR)
+        self.pl = make_user("pl@t.gr", User.Role.SUBCONTRACTOR)
+        self.other = make_user("o@t.gr", User.Role.SUBCONTRACTOR)
+        self.job, items = sectioned_job(self.gc)
+        for u, prices in [(self.el, {items[1].id: 2, items[2].id: 10, items[4].id: 9}),
+                          (self.pl, {items[1].id: 9, items[2].id: 90, items[4].id: 5})]:
+            b = Bid.objects.create(job=self.job, subcontractor=u, status="submitted")
+            for i, p in prices.items():
+                b.lines.create(item_id=i, unit_price=p)
+        Job.objects.filter(id=self.job.id).update(bid_deadline=timezone.now() - timedelta(minutes=1))
+        self.client.force_authenticate(self.gc)
+        r = self.client.post(f"/api/jobs/{self.job.id}/award", {"allocations": [
+            {"bid_id": Bid.objects.get(subcontractor=self.el).id, "sections": [items[0].id]},
+            {"bid_id": Bid.objects.get(subcontractor=self.pl).id, "sections": [items[3].id]}]}, format="json")
+        self.assertEqual(r.status_code, 200, r.data)
+
+    def test_messages_threads_and_notification_throttle(self):
+        url = f"/api/jobs/{self.job.id}/messages"
+        self.client.force_authenticate(self.gc)
+        self.assertEqual(self.client.post(url, {"text": "Γεια"}, format="json").status_code, 400)  # χωρίς «with»
+        self.client.post(url, {"with": self.el.id, "text": "Πότε ξεκινάτε;"}, format="json")
+        self.client.post(url, {"with": self.el.id, "text": "Και κάτι ακόμα"}, format="json")
+        from notify.models import Notification
+        self.assertEqual(Notification.objects.filter(user=self.el, kind="message").count(), 1)  # μία ειδοποίηση
+        self.client.force_authenticate(self.el)
+        threads = self.client.get(f"/api/jobs/{self.job.id}/threads").data
+        self.assertEqual(threads[0]["unread"], 2)
+        msgs = self.client.get(url).data
+        self.assertEqual([m["mine"] for m in msgs], [False, False])
+        self.client.post(url, {"text": "Δευτέρα"}, format="json")
+        self.client.force_authenticate(self.gc)
+        threads = {t["with"]: t for t in self.client.get(f"/api/jobs/{self.job.id}/threads").data}
+        self.assertEqual(threads[self.el.id]["unread"], 1)
+        self.assertEqual(threads[self.pl.id]["last"], None)
+        # Τρίτος δεν έχει πρόσβαση, ούτε ο ένας ανάδοχος στη συνομιλία του άλλου
+        self.client.force_authenticate(self.other)
+        self.assertEqual(self.client.get(url).status_code, 403)
+        self.client.force_authenticate(self.pl)
+        self.assertEqual(len(self.client.get(url).data), 0)
+
+    def test_reviews_both_ways_and_profile_average(self):
+        url = f"/api/jobs/{self.job.id}/reviews"
+        self.client.force_authenticate(self.gc)
+        data = self.client.get(url).data
+        self.assertEqual({t["company"]["name"] for t in data["targets"]}, {"el", "pl"})
+        crit = {c["key"]: 5 for c in data["criteria"]}
+        r = self.client.post(url, {"target": self.el.company.id, "criteria": crit, "comment": "Άψογοι"}, format="json")
+        self.assertEqual(r.status_code, 200, r.data)
+        bad = self.client.post(url, {"target": self.other.company.id, "criteria": crit}, format="json")
+        self.assertEqual(bad.status_code, 400)
+        self.client.post(url, {"target": self.el.company.id, "criteria": {**crit, "quality": 2}}, format="json")  # ενημέρωση
+        self.client.force_authenticate(self.el)
+        crit2 = {c["key"]: 4 for c in self.client.get(url).data["criteria"]}
+        self.assertIn("payments", crit2)
+        self.client.post(url, {"target": self.gc.company.id, "criteria": crit2}, format="json")
+        prof = self.client.get(f"/api/companies/{self.el.company.id}").data["reviews"]
+        self.assertEqual((prof["count"], prof["average"]), (1, 4))
+        listing = {c["name"]: c["rating"] for c in self.client.get("/api/companies", {"role": "contractor"}).data}
+        self.assertEqual(listing["gc"], {"average": 4.0, "count": 1})
+        self.client.force_authenticate(self.other)
+        self.assertEqual(self.client.get(url).status_code, 403)
+
+    def test_contract_data(self):
+        self.client.force_authenticate(self.el)
+        c = self.client.get(f"/api/jobs/{self.job.id}/contract").data
+        self.assertEqual(c["amount"], 300)
+        self.assertEqual(c["scope"], ["ΗΛΕΚΤΡΟΛΟΓΙΚΑ"])
+        self.assertEqual(len(c["appendix"]), 1)
+        self.assertEqual(c["vat_24"], 72)
+        self.client.force_authenticate(self.gc)
+        self.assertEqual(self.client.get(f"/api/jobs/{self.job.id}/contract").status_code, 400)
+        pl_bid = Bid.objects.get(subcontractor=self.pl).id
+        self.assertEqual(self.client.get(f"/api/jobs/{self.job.id}/contract", {"bid": pl_bid}).data["amount"], 250)
+        self.client.force_authenticate(self.other)
+        self.assertEqual(self.client.get(f"/api/jobs/{self.job.id}/contract").status_code, 403)

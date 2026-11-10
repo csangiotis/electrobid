@@ -14,7 +14,7 @@ from django.db import transaction
 from django.utils import timezone
 
 from accounts.models import Company, ProjectReference, User
-from tenders.models import Bid, BidLine, BOQItem, Job, JobDocument, JobQuestion
+from tenders.models import Award, Bid, BidLine, BOQItem, Job, JobDocument, JobQuestion, Message, Review
 
 PASSWORD = "demo1234"
 
@@ -154,6 +154,7 @@ class Command(BaseCommand):
         gc = self.user("ergolavos@demo.gr", "contractor", "Γιώργος", "Αντωνίου",
                        name="ΤΕΧΝΟΔΟΜΙΚΗ ΑΤΕ", vat_number="094512367", region="attiki", city="Αθήνα",
                        license_category="D", verified=True, employees=85, founded_year=1998,
+                       address="Λ. Κηφισίας 120", tax_office="ΦΑΕ Αθηνών",
                        website="https://technodomiki.example.gr", phone="210 6100 200",
                        description=("Τεχνική εταιρεία με 25+ χρόνια σε κτίρια γραφείων, εμπορικά κέντρα και "
                                     "ξενοδοχεία. Αναλαμβάνουμε έργα ως γενικός εργολάβος και συνεργαζόμαστε "
@@ -173,6 +174,7 @@ class Command(BaseCommand):
             "sub2": self.user("volt@demo.gr", "subcontractor", "Νίκος", "Παππάς",
                               name="Volt Εγκαταστάσεις ΙΚΕ", vat_number="801987654", region="attiki",
                               city="Χαλάνδρι", license_category="C", verified=True, employees=11, founded_year=2016,
+                              address="Αγ. Παρασκευής 45", tax_office="Χαλανδρίου",
                               phone="694 000 1122",
                               specialties=["power", "lighting", "pv", "ev"], service_regions=["attiki", "notio_aigaio"],
                               description="Φωτοβολταϊκά, φόρτιση ΗΟ και φωτισμός LED για επαγγελματικούς χώρους."),
@@ -317,7 +319,29 @@ class Command(BaseCommand):
                  category="commercial", location="Μαρούσι", trades=["drywall", "insulation"],
                  deadline=now + timedelta(days=10), start=now.date() + timedelta(days=70), duration="10 εβδομάδες")
 
-        # 6) Πρόχειρο
+        # 6) Ολοκληρωμένη ανάθεση με συνομιλία και αξιολογήσεις
+        shop = self.job(gc, "Ηλεκτρολογικά καταστήματος 2.500 m²", [
+            ("1", "Γενικός πίνακας καταστήματος", "τεμ", 1), ("2", "Φωτιστικά ράγας: εγκατάσταση", "τεμ", 140),
+            ("3", "Καλωδιώσεις NYM 3x2,5", "m", 2200)],
+            description="Ηλεκτρολογική εγκατάσταση νέου καταστήματος λιανικής.", category="commercial",
+            location="Γλυφάδα", trades=["power", "lighting"], deadline=now + timedelta(days=1),
+            start=now.date() - timedelta(days=20), duration="6 εβδομάδες")
+        won = self.bid(shop, subs["sub2"], [6200, 24, "1.35"], duration_days=40, payment_terms="Μηνιαίοι λογαριασμοί")
+        self.bid(shop, subs["sub1"], [6900, 27, "1.40"], duration_days=35)
+        Job.objects.filter(id=shop.id).update(bid_deadline=now - timedelta(days=25), status=Job.Status.AWARDED,
+                                              awarded_bid=won, opened_notified=True, reminder_sent=True)
+        Award.objects.create(job=shop, bid=won, amount=won.total())
+        for sender, text in [(gc, "Καλημέρα, το εργοτάξιο είναι διαθέσιμο από Δευτέρα. Θα σας στείλουμε τα αναθεωρημένα σχέδια φωτισμού."),
+                             (subs["sub2"], "Τέλεια, ξεκινάμε Δευτέρα 8:00 με συνεργείο 4 ατόμων.")]:
+            Message.objects.create(job=shop, subcontractor=subs["sub2"], sender=sender, text=text, read_at=now)
+        Review.objects.create(job=shop, author=gc, target=subs["sub2"].company, rating=5,
+                              criteria={"quality": 5, "timeliness": 5, "cooperation": 4},
+                              comment="Πολύ καθαρή δουλειά, παράδοση μία εβδομάδα νωρίτερα.")
+        Review.objects.create(job=shop, author=subs["sub2"], target=gc.company, rating=4,
+                              criteria={"payments": 4, "organization": 4, "communication": 5},
+                              comment="Οργανωμένο εργοτάξιο και άμεση επικοινωνία.")
+
+        # 7) Πρόχειρο
         Job.objects.create(contractor=gc, title="Σταθμοί φόρτισης ΗΟ σε υπόγειο πάρκινγκ",
                            region="attiki", location="Γλυφάδα", category="commercial", trades=["ev", "power"])
 

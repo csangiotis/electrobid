@@ -77,14 +77,24 @@ class CompanyCardSerializer(serializers.ModelSerializer):
     region_display = serializers.CharField(source="get_region_display", read_only=True)
     license_display = serializers.CharField(source="get_license_category_display", read_only=True)
     projects_count = serializers.SerializerMethodField()
+    rating = serializers.SerializerMethodField()
 
     class Meta:
         model = Company
         fields = [
             "id", "name", "role", "city", "region", "region_display", "service_regions",
             "license_category", "license_display", "specialties", "employees",
-            "founded_year", "description", "verified", "projects_count",
+            "founded_year", "description", "verified", "projects_count", "rating",
         ]
+
+    def get_rating(self, obj):
+        ratings = self.context.get("ratings")
+        if ratings is None:
+            from tenders.collab import ratings_for
+
+            ratings = ratings_for([obj.id])
+        avg, n = ratings.get(obj.id, (None, 0))
+        return {"average": avg, "count": n}
 
     def get_projects_count(self, obj):
         if hasattr(obj, "projects_count"):
@@ -101,8 +111,15 @@ class CompanyProfileSerializer(CompanyCardSerializer):
 
     class Meta(CompanyCardSerializer.Meta):
         fields = CompanyCardSerializer.Meta.fields + [
-            "phone", "website", "vat_number", "projects", "stats", "open_jobs", "is_me", "member_since",
+            "phone", "website", "vat_number", "projects", "stats", "open_jobs", "is_me", "member_since", "reviews",
         ]
+
+    reviews = serializers.SerializerMethodField()
+
+    def get_reviews(self, obj):
+        from tenders.collab import company_reviews
+
+        return company_reviews(obj)
 
     def get_stats(self, obj):
         return _stats(obj)
@@ -153,7 +170,11 @@ def company_list(request):
         companies = [c for c in companies if c.region == region or region in (c.service_regions or [])]
     if specialty in SPECIALTY_KEYS:
         companies = [c for c in companies if specialty in (c.specialties or [])]
-    return Response(CompanyCardSerializer(companies[:200], many=True).data)
+    from tenders.collab import ratings_for
+
+    companies = companies[:200]
+    ctx = {"ratings": ratings_for([c.id for c in companies])}
+    return Response(CompanyCardSerializer(companies, many=True, context=ctx).data)
 
 
 @api_view(["GET"])

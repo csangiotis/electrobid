@@ -261,3 +261,37 @@ def boq_sections(items):
     if current[3] or current[0]:
         sections.append(tuple(current))
     return [s for s in sections if s[3]]
+
+
+class Message(models.Model):
+    """Μήνυμα στη συνομιλία εργολάβου και ενός αναδόχου υπεργολάβου (μετά την ανάθεση)."""
+
+    job = models.ForeignKey(Job, on_delete=models.CASCADE, related_name="messages")
+    subcontractor = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="+")
+    sender = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="+")
+    text = models.TextField(blank=True)
+    attachment = models.FileField(upload_to="messages/%Y/%m/", blank=True)
+    read_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["created_at"]
+        indexes = [models.Index(fields=["job", "subcontractor"])]
+
+
+class Review(models.Model):
+    """Αξιολόγηση μετά από ανάθεση: ο εργολάβος τον ανάδοχο και ο ανάδοχος τον εργολάβο."""
+
+    job = models.ForeignKey(Job, on_delete=models.CASCADE, related_name="reviews")
+    author = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="reviews_written")
+    target = models.ForeignKey("accounts.Company", on_delete=models.CASCADE, related_name="reviews")
+    rating = models.PositiveSmallIntegerField()
+    # Κριτήρια 1–5, π.χ. {"quality": 5, "timeliness": 4, "communication": 5}
+    criteria = models.JSONField(default=dict, blank=True)
+    comment = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        unique_together = [("job", "author", "target")]
+        ordering = ["-created_at"]

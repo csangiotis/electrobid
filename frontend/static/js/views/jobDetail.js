@@ -5,6 +5,7 @@ import {
 } from "../ui.js";
 import { invitesPanel } from "./invites.js";
 import { awardedBanner, compare, myBid } from "./bidding.js";
+import { collabTab } from "./collab.js";
 
 export async function jobDetailView(main, [id], stale) {
   const [job, boq] = await Promise.all([api(`jobs/${id}`), api(`jobs/${id}/boq`)]);
@@ -18,7 +19,9 @@ export async function jobDetailView(main, [id], stale) {
   if (isSub) tabs.push(["bid", "Η προσφορά μου"]);
   if (job.is_owner) tabs.push(["bids", `Προσφορές (${job.bids_count})`]);
   if (job.is_owner && job.phase === "bidding") tabs.push(["invites", "Προσκλήσεις"]);
-  let tab = params.get("tab") || (job.is_owner && job.phase !== "bidding" ? "bids" : "overview");
+  const collab = job.status === "awarded" && (job.is_owner || job.awarded?.is_me);
+  if (collab) tabs.splice(1, 0, ["collab", "Συνεργασία"]);
+  let tab = params.get("tab") || (collab ? "collab" : job.is_owner && job.phase !== "bidding" ? "bids" : "overview");
   if (!tabs.some(([k]) => k === tab)) tab = "overview";
 
   const lines = boq.filter((r) => !r.is_section);
@@ -59,7 +62,7 @@ export async function jobDetailView(main, [id], stale) {
     busy(e.target, async () => { await api(`jobs/${id}/decline`, { method: "POST" }); dispatchEvent(new HashChangeEvent("hashchange")); });
   });
   const el = main.querySelector("#tab");
-  const views = { overview, boq: boqTab, qa: questions, bid: myBid, bids: compare,
+  const views = { overview, boq: boqTab, qa: questions, bid: myBid, bids: compare, collab: collabTab,
     invites: (box) => { box.innerHTML = `<div class="panel narrow" id="inv"></div>`; return invitesPanel(box.querySelector("#inv"), job); } };
   await views[tab](el, job, boq, stale);
 }
