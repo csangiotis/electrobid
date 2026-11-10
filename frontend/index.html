@@ -1,0 +1,17 @@
+{% load static %}<!doctype html>
+<html lang="el">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ElectroBid · Προσφορές ηλεκτρολογικών έργων</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{% static 'css/app.css' %}">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%2314213d'/><path d='M18 4 8 18h7l-2 10 11-15h-7z' fill='%23f2a900'/></svg>">
+</head>
+<body>
+  <div id="app"><div class="boot">Φόρτωση…</div></div>
+  <div id="toasts" aria-live="polite"></div>
+  <script type="module" src="{% static 'js/app.js' %}"></script>
+</body>
+</html>

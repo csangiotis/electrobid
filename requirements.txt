@@ -1,0 +1,4 @@
+# Django 4.2 LTS για Python 3.9, Django 5.2+ για Python 3.10+
+Django>=4.2,<7
+djangorestframework>=3.14
+openpyxl>=3.1

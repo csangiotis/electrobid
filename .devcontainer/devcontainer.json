@@ -1,0 +1,13 @@
+{
+  "name": "ElectroBid",
+  "image": "mcr.microsoft.com/devcontainers/python:3.12",
+  "postCreateCommand": "pip install -r requirements.txt && python manage.py migrate && python manage.py seed_demo",
+  "postAttachCommand": "python manage.py runserver 0.0.0.0:8000",
+  "forwardPorts": [8000],
+  "portsAttributes": {
+    "8000": { "label": "ElectroBid", "onAutoForward": "openBrowser" }
+  },
+  "customizations": {
+    "vscode": { "extensions": ["ms-python.python"] }
+  }
+}
