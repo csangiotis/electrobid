@@ -9,7 +9,7 @@ from django.http import FileResponse, HttpResponse
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from rest_framework import mixins, status, viewsets
-from rest_framework.decorators import action
+from rest_framework.decorators import action, api_view
 from rest_framework.exceptions import PermissionDenied, ValidationError
 from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
 from rest_framework.response import Response
@@ -18,6 +18,7 @@ from accounts.textsearch import matches
 
 from . import events
 from .collab import CollaborationMixin
+from .pricing import market_for_job, suggestions_for
 from .boq_import import BOQImportError, parse_boq
 from .comparison import build_comparison, comparison_xlsx
 from .models import Award, Bid, BidLine, BOQItem, Job, JobDocument, JobInvitation, JobQuestion, boq_sections
@@ -479,6 +480,9 @@ class JobViewSet(CollaborationMixin, viewsets.ModelViewSet):
                 "bid_deadline": job.bid_deadline,
             })
         data = build_comparison(job)
+        market = market_for_job(job)
+        for row in data["rows"]:
+            row["market"] = market.get(row["item_id"])
         data["awarded_bid_id"] = job.awarded_bid_id
         data["awarded_bid_ids"] = [a["bid_id"] for a in data["awards"]]
         return Response(data)
@@ -537,6 +541,13 @@ class JobViewSet(CollaborationMixin, viewsets.ModelViewSet):
                         defaults={"unit_price": ln.get("unit_price"), "note": ln.get("note", "")},
                     )
         return Response(BidSerializer(bid).data)
+
+    @action(detail=True, methods=["get"], url_path="my-bid/suggestions")
+    def bid_suggestions(self, request, pk=None):
+        """Προτάσεις τιμών από τις προηγούμενες προσφορές του υπεργολάβου σε παρόμοιες γραμμές."""
+        job = self.get_object()
+        _require_subcontractor(request.user)
+        return Response(suggestions_for(job, request.user))
 
     @action(detail=True, methods=["post"], url_path="my-bid/submit")
     def submit_bid(self, request, pk=None):
@@ -608,3 +619,12 @@ class MyBidsViewSet(mixins.ListModelMixin, viewsets.GenericViewSet):
     def get_queryset(self):
         return (Bid.objects.filter(subcontractor=self.request.user)
                 .select_related("job__contractor__company").order_by("-updated_at"))
+
+
+@api_view(["GET"])
+def price_index_view(request):
+    """Ανώνυμοι δείκτες τιμών: ?q=γυψοσανίδα&unit=m2&region=attiki"""
+    from .pricing import price_index
+
+    p = request.query_params
+    return Response(price_index(p.get("q", "")[:200], p.get("unit", ""), p.get("region", "")))

@@ -9,6 +9,7 @@ import { companyView, directoryView } from "./views/directory.js";
 import { forgotView, notifItem, notificationsView, resetView, verifyView } from "./views/account.js";
 import { privacyView, termsView } from "./views/legal.js";
 import { contractView } from "./views/collab.js";
+import { pricesView } from "./views/prices.js";
 
 const routes = [
   [/^\/login$/, loginView, { public: true }],
@@ -19,6 +20,7 @@ const routes = [
   [/^\/terms$/, termsView, { any: true }],
   [/^\/privacy$/, privacyView, { any: true }],
   [/^\/notifications$/, notificationsView],
+  [/^\/prices$/, pricesView],
   [/^\/jobs$/, marketView],
   [/^\/jobs\/new$/, jobEditView, { role: "contractor" }],
   [/^\/jobs\/(\d+)\/edit$/, jobEditView, { role: "contractor" }],
@@ -38,8 +40,8 @@ export function home() {
 function nav(path) {
   const me = state.me;
   const links = me.role === "contractor"
-    ? [["#/my-jobs", "Οι εργασίες μου"], ["#/jobs", "Αγορά εργασιών"], ["#/directory", "Υπεργολάβοι"]]
-    : [["#/jobs", "Διαθέσιμες εργασίες"], ["#/my-bids", "Οι προσφορές μου"], ["#/directory", "Εργολάβοι"]];
+    ? [["#/my-jobs", "Οι εργασίες μου"], ["#/jobs", "Αγορά εργασιών"], ["#/directory", "Υπεργολάβοι"], ["#/prices", "Τιμές"]]
+    : [["#/jobs", "Διαθέσιμες εργασίες"], ["#/my-bids", "Οι προσφορές μου"], ["#/directory", "Εργολάβοι"], ["#/prices", "Τιμές"]];
   const active = (href) => {
     const h = href.slice(1);
     if (path === h) return "active";

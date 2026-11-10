@@ -81,7 +81,9 @@ export async function myBid(el, job, boq, stale) {
   <form id="bid" class="bid-layout">
     <div class="panel">
       <div class="row wrap"><h2 class="grow">Τιμολόγηση προμέτρησης ${bid ? bidBadge(bid.status) : ""}</h2>
-        ${editable ? `<button type="button" class="btn sm ghost" id="paste">Επικόλληση στήλης τιμών από Excel</button>` : ""}</div>
+        ${editable ? `<button type="button" class="btn sm" id="fill-own" hidden>Συμπλήρωση από τον τιμοκατάλογό μου</button>
+          <button type="button" class="btn sm ghost" id="paste">Επικόλληση στήλης τιμών από Excel</button>` : ""}</div>
+      <p class="muted small" id="sugg-info" hidden></p>
       <p class="muted small">Τιμές μονάδας χωρίς ΦΠΑ. Αφήστε κενό αν δεν τιμολογείτε μια γραμμή και εξηγήστε στη σημείωση.
         ${multi && editable ? "Μπορείτε να δώσετε <b>μερική προσφορά</b>: σημειώστε τις ενότητες που δεν τιμολογείτε." : ""}</p>
       <div class="table-wrap"><table class="tbl boq priced">
@@ -163,6 +165,47 @@ export async function myBid(el, job, boq, stale) {
       }),
     };
   };
+  // Τιμοκατάλογος: προτάσεις από προηγούμενες προσφορές σε παρόμοιες γραμμές
+  api(`jobs/${job.id}/my-bid/suggestions`).then((sugg) => {
+    const ids = Object.keys(sugg);
+    if (!ids.length || !form.isConnected) return;
+    for (const id of ids) {
+      const s = sugg[id];
+      const input = form.elements[`p-${id}`];
+      if (!input) continue;
+      const hint = document.createElement("button");
+      hint.type = "button";
+      hint.className = "sugg";
+      hint.dataset.item = id;
+      hint.dataset.price = s.unit_price;
+      hint.title = `Από «${s.description}» · ${s.job} · ${fmt.date(s.date)}`;
+      hint.textContent = `πρόταση ${fmt.money(s.unit_price)}`;
+      input.insertAdjacentElement("afterend", hint);
+    }
+    const info = el.querySelector("#sugg-info");
+    info.hidden = false;
+    info.textContent = `Βρέθηκαν τιμές από τις προηγούμενες προσφορές σας για ${ids.length} από ${lines.length} γραμμές. Πατήστε μια πρόταση για να την εφαρμόσετε.`;
+    const btn = el.querySelector("#fill-own");
+    btn.hidden = false;
+    btn.onclick = () => {
+      let n = 0;
+      for (const id of ids) {
+        const input = form.elements[`p-${id}`];
+        if (input && !input.disabled && !input.value.trim()) { input.value = String(sugg[id].unit_price).replace(".", ","); n++; }
+      }
+      recalc();
+      toast(n ? `Συμπληρώθηκαν ${n} κενές γραμμές από τον τιμοκατάλογό σας. Ελέγξτε τις πριν την υποβολή.` : "Δεν υπάρχουν κενές γραμμές με πρόταση.", n ? "ok" : "info");
+    };
+  }).catch(() => {});
+  form.addEventListener("click", (e) => {
+    const h = e.target.closest(".sugg");
+    if (!h) return;
+    const input = form.elements[`p-${h.dataset.item}`];
+    if (input.disabled) return;
+    input.value = String(h.dataset.price).replace(".", ",");
+    recalc();
+  });
+
   const save = async () => {
     if (recalc().bad) throw new Error("Διορθώστε τις τιμές που είναι σημειωμένες με κόκκινο.");
     return api(`jobs/${job.id}/my-bid`, { method: "PUT", body: payload() });
@@ -292,9 +335,9 @@ export async function compare(el, job, _boq, stale) {
     <div class="table-wrap compare-wrap"><table class="tbl compare">
       <thead><tr><th class="sticky-col">Α/Α</th><th class="sticky-col2">Περιγραφή</th><th>Μον.</th><th class="num">Ποσ.</th>
         ${B.map((b) => `<th class="num bidder-col">${companyLink(b.company)}<small>τιμή μον. / σύνολο</small></th>`).join("")}
-        <th class="num">Διάμεσος</th></tr></thead>
+        <th class="num">Διάμεσος</th><th class="num" title="Ανώνυμος διάμεσος από άλλες εργασίες της πλατφόρμας (τουλάχιστον 3 εταιρείες)">Αγορά</th></tr></thead>
       <tbody>${data.rows.map((r) => r.is_section
-        ? `<tr class="section-row"><td class="sticky-col">${esc(r.code)}</td><td class="sticky-col2" colspan="${3 + B.length + 1}">${esc(r.description)}</td></tr>`
+        ? `<tr class="section-row"><td class="sticky-col">${esc(r.code)}</td><td class="sticky-col2" colspan="${3 + B.length + 2}">${esc(r.description)}</td></tr>`
         : `<tr><td class="sticky-col mono">${esc(r.code)}</td><td class="sticky-col2 desc">${esc(r.description)}</td><td>${esc(r.unit)}</td><td class="num mono">${fmt.num(r.quantity)}</td>
           ${B.map((b) => {
             const c = cell(r, b);
@@ -302,10 +345,11 @@ export async function compare(el, job, _boq, stale) {
             if (c.flag === "excluded") return `<td class="num ${cls}"><small>εκτός</small></td>`;
             return `<td class="num mono ${cls}" ${c.note ? `title="${esc(c.note)}"` : ""}>${c.unit_price == null ? "—" : `${fmt.money(c.unit_price)}${c.original_unit_price != null ? `<s class="orig">${fmt.money(c.original_unit_price)}</s>` : ""}<small>${fmt.money(c.line_total)}</small>`}${c.note ? " ✎" : ""}</td>`;
           }).join("")}
-          <td class="num mono muted">${fmt.money(r.median)}</td></tr>`).join("")}
+          <td class="num mono muted">${fmt.money(r.median)}</td>
+          <td class="num mono market">${r.market ? `${fmt.money(r.market.median)}<small>${fmt.money(r.market.p25)}–${fmt.money(r.market.p75)} · ${r.market.companies} εταιρ.</small>` : `<span class="muted">—</span>`}</td></tr>`).join("")}
       </tbody>
       <tfoot><tr><td class="sticky-col"></td><td class="sticky-col2">Σύνολο</td><td></td><td></td>
-        ${B.map((b) => `<td class="num mono"><b>${fmt.money(b.total)}</b></td>`).join("")}<td></td></tr></tfoot>
+        ${B.map((b) => `<td class="num mono"><b>${fmt.money(b.total)}</b></td>`).join("")}<td></td><td></td></tr></tfoot>
     </table></div>
   </div>`;
 

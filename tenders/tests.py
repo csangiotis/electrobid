@@ -1,3 +1,4 @@
+from decimal import Decimal
 import io
 import shutil
 import tempfile
@@ -424,3 +425,55 @@ class CollaborationTests(APITestCase):
         self.assertEqual(self.client.get(f"/api/jobs/{self.job.id}/contract", {"bid": pl_bid}).data["amount"], 250)
         self.client.force_authenticate(self.other)
         self.assertEqual(self.client.get(f"/api/jobs/{self.job.id}/contract").status_code, 403)
+
+
+class PricingTests(APITestCase):
+    def setUp(self):
+        from accounts.models import Company
+        self.gc = make_user("gc@t.gr", User.Role.CONTRACTOR)
+        self.subs = [make_user(f"s{i}@t.gr", User.Role.SUBCONTRACTOR) for i in range(4)]
+        # Παλιά, κλειστή δημόσια εργασία με τιμές από 4 εταιρείες
+        self.old = Job.objects.create(contractor=self.gc, title="Παλιά", region="attiki", status=Job.Status.AWARDED,
+                                      bid_deadline=timezone.now() - timedelta(days=30))
+        from tenders.models import BOQItem
+        it = BOQItem.objects.create(job=self.old, position=1, description="Χώρισμα γυψοσανίδας 10 cm με πετροβάμβακα",
+                                    unit="τ.μ.", quantity=100)
+        for i, (u, p) in enumerate(zip(self.subs, [20, 22, 25, 40])):
+            b = Bid.objects.create(job=self.old, subcontractor=u, status="submitted")
+            b.lines.create(item=it, unit_price=p)
+        # Νέα εργασία με παρόμοια γραμμή
+        self.new = Job.objects.create(contractor=self.gc, title="Νέα", region="attiki", status=Job.Status.OPEN,
+                                      bid_deadline=timezone.now() + timedelta(days=3))
+        self.item = BOQItem.objects.create(job=self.new, position=1, description="Χώρισμα από γυψοσανίδα 10cm, με πετροβάμβακα",
+                                           unit="m²", quantity=50)
+        self.other = BOQItem.objects.create(job=self.new, position=2, description="Χώρισμα γυψοσανίδας 10 cm",
+                                            unit="m", quantity=5)  # άλλη μονάδα
+
+    def test_own_price_suggestions(self):
+        self.client.force_authenticate(self.subs[1])
+        s = self.client.get(f"/api/jobs/{self.new.id}/my-bid/suggestions").data
+        self.assertEqual(list(s), [self.item.id])  # η γραμμή με άλλη μονάδα δεν ταιριάζει
+        self.assertEqual(s[self.item.id]["unit_price"], 22)
+        self.client.force_authenticate(make_user("new@t.gr", User.Role.SUBCONTRACTOR))
+        self.assertEqual(self.client.get(f"/api/jobs/{self.new.id}/my-bid/suggestions").data, {})
+
+    def test_market_stats_need_three_companies(self):
+        Job.objects.filter(id=self.new.id).update(bid_deadline=timezone.now() - timedelta(minutes=1))
+        self.client.force_authenticate(self.gc)
+        rows = {r["item_id"]: r for r in self.client.get(f"/api/jobs/{self.new.id}/comparison").data["rows"]}
+        m = rows[self.item.id]["market"]
+        self.assertEqual((m["companies"], m["median"]), (4, 23.5))
+        self.assertIsNone(rows[self.other.id]["market"])
+        # Με δύο εταιρείες δεν εμφανίζεται τίποτα
+        Bid.objects.filter(subcontractor__in=self.subs[2:]).delete()
+        rows = {r["item_id"]: r for r in self.client.get(f"/api/jobs/{self.new.id}/comparison").data["rows"]}
+        self.assertIsNone(rows[self.item.id]["market"])
+
+    def test_price_index_search_and_private_jobs_excluded(self):
+        self.client.force_authenticate(self.subs[0])
+        r = self.client.get("/api/price-index", {"q": "γυψοσανιδα πετροβαμβακα"}).data
+        self.assertEqual(r["unit"], "m2")
+        self.assertEqual(r["result"]["companies"], 4)
+        self.assertEqual(r["result"]["p25"], Decimal("21.50"))
+        Job.objects.filter(id=self.old.id).update(visibility="private")
+        self.assertIsNone(self.client.get("/api/price-index", {"q": "γυψοσανιδα"}).data["result"])

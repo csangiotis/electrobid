@@ -516,3 +516,16 @@ s.orig { display: block; color: var(--muted); font-size: .74rem; }
   .page-break { page-break-before: always; }
 }
 @media (max-width: 900px) { .collab.with-threads { grid-template-columns: 1fr; } .collab.with-threads #review { grid-column: 1; } .contract { padding: 24px; } }
+
+/* ---- Τιμές ---- */
+.sugg { display: block; margin: 3px 0 0 auto; border: 0; background: var(--live-soft); color: var(--live); border-radius: 6px; font: inherit; font-size: .74rem; padding: 2px 8px; cursor: pointer; white-space: nowrap; }
+.sugg:hover { background: #d3e1fa; }
+.market small { display: block; color: var(--muted); font-size: .72rem; }
+.filters.prices { grid-template-columns: 1fr 200px 200px auto; }
+.price-card h2 { margin: 6px 0 4px; font-size: 1.4rem; }
+.range-bar { position: relative; height: 12px; background: #eef0f4; border-radius: 6px; margin: 18px 0 6px; }
+.range-bar .iqr { position: absolute; top: 0; bottom: 0; background: var(--amber-soft); border: 1px solid #f0cf8a; border-radius: 6px; }
+.range-bar .med { position: absolute; top: -5px; width: 3px; height: 22px; background: var(--ink); border-radius: 2px; transform: translateX(-1px); }
+.range-labels { display: flex; justify-content: space-between; color: var(--muted); }
+.examples { margin: 0; padding-left: 18px; color: var(--ink-2); }
+@media (max-width: 720px) { .filters.prices { grid-template-columns: 1fr; } }

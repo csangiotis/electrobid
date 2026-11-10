@@ -341,7 +341,26 @@ class Command(BaseCommand):
                               criteria={"payments": 4, "organization": 4, "communication": 5},
                               comment="Οργανωμένο εργοτάξιο και άμεση επικοινωνία.")
 
-        # 7) Πρόχειρο
+        # 7) Ιστορικό: κλειστές εργασίες με τιμές από πολλές εταιρείες (για δείκτες τιμών και τιμοκατάλογο)
+        history = [
+            ("Ηλεκτρολογικά γραφείων Χαλανδρίου", OFFICE_BOQ, ["power", "low_voltage", "fire"],
+             [("sub1", 1.04), ("sub2", 0.97), ("sub3", 1.10), ("sub4", 1.00)], OFFICE_PRICES["sub1"], 160),
+            ("Γυψοσανίδες ξενοδοχείου Βουλιαγμένης", DRYWALL_BOQ, ["drywall"],
+             [("dry", 1.0), ("sub3", 1.12), ("sub5", 0.95), ("plumb", 1.20)], [32, 26, 21, 34, 38], 90),
+        ]
+        for title, boq, trades, bidders, base, days_ago in history:
+            old = self.job(gc, title, boq, description="Ολοκληρωμένη εργασία (ιστορικό).", category="commercial",
+                           location="Αττική", trades=trades, deadline=now + timedelta(days=1),
+                           start=now.date() - timedelta(days=days_ago - 10), duration="")
+            bids = []
+            for key, factor in bidders:
+                prices = [None if p is None else round(float(p) * factor, 2) for p in base]
+                bids.append(self.bid(old, subs[key], prices, duration_days=60))
+            Job.objects.filter(id=old.id).update(bid_deadline=now - timedelta(days=days_ago), status=Job.Status.AWARDED,
+                                                 awarded_bid=bids[0], opened_notified=True, reminder_sent=True)
+            Award.objects.create(job=old, bid=bids[0], amount=bids[0].total())
+
+        # 8) Πρόχειρο
         Job.objects.create(contractor=gc, title="Σταθμοί φόρτισης ΗΟ σε υπόγειο πάρκινγκ",
                            region="attiki", location="Γλυφάδα", category="commercial", trades=["ev", "power"])
 
