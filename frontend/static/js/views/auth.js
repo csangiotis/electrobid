@@ -4,8 +4,8 @@ import { busy, esc, formData, options, state, tradeChips } from "../ui.js";
 
 const brand = `
   <div class="auth-brand">
-    <svg viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="7"/><path d="M18 4 8 18h7l-2 10 11-15h-7z"/></svg>
-    <div><div class="auth-title">Electro<b>Bid</b></div>
+    <svg viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="7"/><path d="M6 20h9v6H6zM17 20h9v6h-9zM11.5 12h9v6h-9zM14 5.5h4v4.5h-4z"/></svg>
+    <div><div class="auth-title">subcontractor<b>.gr</b></div>
     <p>Υπεργολαβίες για όλες τις ειδικότητες της οικοδομής: ο εργολάβος ανεβάζει προμέτρηση και σχέδια, οι υπεργολάβοι τιμολογούν γραμμή-γραμμή.</p></div>
   </div>`;
 

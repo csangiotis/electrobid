@@ -1,10 +1,16 @@
 // Επικοινωνία με το Django REST API.
-const TOKEN_KEY = "electrobid.token";
+const TOKEN_KEY = "subcontractor.token";
+const OLD_TOKEN_KEY = "electrobid.token";
 
 export const auth = {
-  get token() { try { return localStorage.getItem(TOKEN_KEY); } catch { return null; } },
+  get token() {
+    try { return localStorage.getItem(TOKEN_KEY) || localStorage.getItem(OLD_TOKEN_KEY); } catch { return null; }
+  },
   set token(v) {
-    try { v ? localStorage.setItem(TOKEN_KEY, v) : localStorage.removeItem(TOKEN_KEY); } catch { /* */ }
+    try {
+      localStorage.removeItem(OLD_TOKEN_KEY);
+      v ? localStorage.setItem(TOKEN_KEY, v) : localStorage.removeItem(TOKEN_KEY);
+    } catch { /* */ }
   },
 };
 

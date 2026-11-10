@@ -39,8 +39,8 @@ function nav(path) {
   return `
   <header class="topbar">
     <a class="brand" href="${home()}">
-      <svg viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="7"/><path d="M18 4 8 18h7l-2 10 11-15h-7z"/></svg>
-      <span>Electro<b>Bid</b></span>
+      <svg viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="7"/><path d="M6 20h9v6H6zM17 20h9v6h-9zM11.5 12h9v6h-9zM14 5.5h4v4.5h-4z"/></svg>
+      <span>subcontractor<b>.gr</b></span>
     </a>
     <nav>${links.map(([h, t]) => `<a href="${h}" class="${active(h)}">${t}</a>`).join("")}</nav>
     <div class="who">

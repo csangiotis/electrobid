@@ -1,4 +1,5 @@
-# Render Blueprint: δημιουργεί web service και βάση PostgreSQL από αυτό το repo.
+# Render Blueprint για το subcontractor.gr: web service και βάση PostgreSQL.
+# (Τα ονόματα electrobid/electrobid-db μένουν ίδια: αν αλλάξουν, το Render φτιάχνει νέο service.)
 # Render → New → Blueprint → επιλέξτε το repo.
 services:
   - type: web

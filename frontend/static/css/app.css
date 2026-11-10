@@ -392,3 +392,13 @@ input.invalid { border-color: var(--bad); background: var(--bad-soft); }
 .filters.dir:has(.check) { grid-template-columns: 1fr 200px 240px auto; }
 @media (max-width: 1000px) { .filters.dir:has(.check) { grid-template-columns: 1fr 1fr; } }
 @media (max-width: 720px) { .filters.dir:has(.check) { grid-template-columns: 1fr; } }
+
+/* ---- Κινητό: μενού σε μία γραμμή με οριζόντια κύλιση ---- */
+.topbar nav a { white-space: nowrap; }
+@media (max-width: 720px) {
+  .topbar { padding-top: 8px; }
+  .topbar .who .btn.primary { display: none; }
+  .topbar .who { margin-left: auto; }
+  .topbar nav { scrollbar-width: none; }
+  .topbar nav::-webkit-scrollbar { display: none; }
+}

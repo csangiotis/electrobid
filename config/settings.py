@@ -1,5 +1,5 @@
 """
-Ρυθμίσεις Django για το ElectroBid.
+Ρυθμίσεις Django για το subcontractor.gr.
 
 Για παραγωγή ορίστε τις μεταβλητές περιβάλλοντος:
   DJANGO_SECRET_KEY, DJANGO_DEBUG=0, DJANGO_ALLOWED_HOSTS
@@ -14,6 +14,9 @@ SECRET_KEY = os.environ.get(
 )
 DEBUG = os.environ.get("DJANGO_DEBUG", "1") == "1"
 ALLOWED_HOSTS = os.environ.get("DJANGO_ALLOWED_HOSTS", "localhost,127.0.0.1").split(",")
+# Το domain της πλατφόρμας (και www.) γίνεται πάντα δεκτό
+SITE_DOMAIN = os.environ.get("SITE_DOMAIN", "subcontractor.gr")
+ALLOWED_HOSTS += [SITE_DOMAIN, f"www.{SITE_DOMAIN}"]
 CSRF_TRUSTED_ORIGINS = [
     f"https://{h.lstrip('.')}" if not h.startswith(".") else f"https://*{h}"
     for h in ALLOWED_HOSTS if h not in ("localhost", "127.0.0.1") and h
