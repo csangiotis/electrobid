@@ -1,0 +1,6 @@
+# Επιπλέον πακέτα για παραγωγή (Render ή άλλος server)
+-r requirements.txt
+gunicorn>=22
+whitenoise>=6.6
+dj-database-url>=2.1
+psycopg[binary]>=3.1

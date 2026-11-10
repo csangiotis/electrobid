@@ -6,6 +6,14 @@
 - Frontend: JavaScript (ES modules, χωρίς build step), σερβίρεται από το Django
 - Βάση: SQLite για ανάπτυξη (για παραγωγή PostgreSQL)
 
+## Online στο Render (ενημερώνεται αυτόματα από το GitHub)
+
+1. Στο https://render.com συνδεθείτε με τον λογαριασμό GitHub.
+2. **New → Blueprint**, επιλέξτε αυτό το repo και πατήστε **Apply**. Το `render.yaml` δημιουργεί web service και βάση PostgreSQL και φορτώνει τα demo δεδομένα.
+3. Η εφαρμογή ανοίγει στο `https://electrobid-xxxx.onrender.com`. Κάθε push στο `main` κάνει νέο deploy.
+
+Στο δωρεάν πλάνο ο server «κοιμάται» μετά από αδράνεια και τα ανεβασμένα αρχεία (σχέδια, φωτογραφίες) χάνονται σε κάθε deploy ή restart. Για πραγματική χρήση χρειάζεται πληρωμένο πλάνο με persistent disk ή αποθήκευση αρχείων σε S3/R2.
+
 ## Εκκίνηση από το GitHub (Codespaces, χωρίς εγκατάσταση)
 
 Στη σελίδα του repo: **Code → Codespaces → Create codespace on main**. Σε 2-3 λεπτά εγκαθίστανται όλα, φορτώνονται τα demo δεδομένα και ανοίγει η εφαρμογή σε νέα καρτέλα. Αν δεν ανοίξει, πηγαίνετε στην καρτέλα **Ports** και ανοίξτε τη θύρα 8000.

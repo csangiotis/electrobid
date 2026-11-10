@@ -409,8 +409,11 @@ class DocumentViewSet(mixins.DestroyModelMixin, viewsets.GenericViewSet):
         job = doc.job
         if job.status == Job.Status.DRAFT and job.contractor_id != request.user.id:
             raise PermissionDenied()
-        return FileResponse(doc.file.open("rb"), as_attachment=request.query_params.get("inline") != "1",
-                            filename=doc.filename)
+        try:
+            fh = doc.file.open("rb")
+        except FileNotFoundError:
+            return Response({"detail": "Το αρχείο δεν είναι πλέον διαθέσιμο στον server."}, status=404)
+        return FileResponse(fh, as_attachment=request.query_params.get("inline") != "1", filename=doc.filename)
 
     def destroy(self, request, *args, **kwargs):
         doc = self.get_object()

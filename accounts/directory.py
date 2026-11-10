@@ -224,6 +224,9 @@ def project_photo(request, pk):
     project = get_object_or_404(ProjectReference, pk=pk)
     if not project.photo:
         return Response(status=status.HTTP_404_NOT_FOUND)
-    resp = FileResponse(project.photo.open("rb"))
+    try:
+        resp = FileResponse(project.photo.open("rb"))
+    except FileNotFoundError:
+        return Response(status=status.HTTP_404_NOT_FOUND)
     resp["Cache-Control"] = "private, max-age=3600"
     return resp

@@ -14,7 +14,10 @@ SECRET_KEY = os.environ.get(
 )
 DEBUG = os.environ.get("DJANGO_DEBUG", "1") == "1"
 ALLOWED_HOSTS = os.environ.get("DJANGO_ALLOWED_HOSTS", "localhost,127.0.0.1").split(",")
-CSRF_TRUSTED_ORIGINS = []
+CSRF_TRUSTED_ORIGINS = [
+    f"https://{h.lstrip('.')}" if not h.startswith(".") else f"https://*{h}"
+    for h in ALLOWED_HOSTS if h not in ("localhost", "127.0.0.1") and h
+]
 
 # GitHub Codespaces: η εφαρμογή ανοίγει σε https://<όνομα>-8000.app.github.dev
 if os.environ.get("CODESPACES") == "true":
@@ -44,6 +47,20 @@ MIDDLEWARE = [
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
 ]
 
+# Σερβίρισμα static αρχείων σε παραγωγή (αν είναι εγκατεστημένο το whitenoise)
+try:
+    import whitenoise  # noqa: F401
+
+    MIDDLEWARE.insert(1, "whitenoise.middleware.WhiteNoiseMiddleware")
+except ImportError:
+    pass
+
+if not DEBUG:
+    SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SECURE = True
+    SECURE_SSL_REDIRECT = os.environ.get("DJANGO_SSL_REDIRECT", "1") == "1"
+
 ROOT_URLCONF = "config.urls"
 
 TEMPLATES = [
@@ -69,6 +86,11 @@ DATABASES = {
         "NAME": BASE_DIR / "db.sqlite3",
     }
 }
+# Σε server: DATABASE_URL=postgres://... (π.χ. από το Render)
+if os.environ.get("DATABASE_URL"):
+    import dj_database_url
+
+    DATABASES["default"] = dj_database_url.parse(os.environ["DATABASE_URL"], conn_max_age=600)
 
 AUTH_USER_MODEL = "accounts.User"
 
