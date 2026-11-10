@@ -213,6 +213,8 @@ class TenderFlowTests(APITestCase):
         self.sub1.company.specialties = ["power"]
         self.sub1.company.save()
         self.assertEqual(ids({"mine": "1"}), [electrical])
+        Job.objects.filter(id=drywall).update(trades=[])  # χωρίς ειδικότητα: φαίνεται σε όλους
+        self.assertEqual(set(ids({"mine": "1"})), {electrical, drywall})
 
     def test_marketplace_search_ignores_case_and_accents(self):
         job_id = self.create_published_job()

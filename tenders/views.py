@@ -70,12 +70,15 @@ class JobViewSet(viewsets.ModelViewSet):
             qs = qs.filter(category=params["category"])
         # Φίλτρο ειδικότητας (JSON λίστα· φιλτράρεται στην Python για συμβατότητα με SQLite)
         wanted = set()
+        mine = False
         if params.get("trade"):
             wanted = {params["trade"]}
         elif params.get("mine") in ("1", "true") and getattr(user, "company", None):
-            wanted = set(user.company.specialties or [])
+            wanted, mine = set(user.company.specialties or []), True
         if wanted:
-            ids = [pk for pk, trades in qs.values_list("id", "trades") if wanted & set(trades or [])]
+            # Στο «μόνο τις δικές μου» εμφανίζονται και εργασίες χωρίς δηλωμένη ειδικότητα
+            ids = [pk for pk, trades in qs.values_list("id", "trades")
+                   if wanted & set(trades or []) or (mine and not trades)]
             qs = qs.filter(id__in=ids)
         if params.get("scope") != "mine":
             qs = qs.order_by("bid_deadline")
