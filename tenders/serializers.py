@@ -68,7 +68,7 @@ class JobListSerializer(serializers.ModelSerializer):
     class Meta:
         model = Job
         fields = [
-            "id", "title", "category", "category_display", "region", "region_display",
+            "id", "title", "category", "category_display", "trades", "region", "region_display",
             "location", "required_license", "license_display", "bid_deadline",
             "start_date", "duration_text", "status", "phase", "revision", "published_at",
             "contractor", "boq_count", "documents_count", "bids_count",
@@ -125,9 +125,22 @@ class JobWriteSerializer(serializers.ModelSerializer):
     class Meta:
         model = Job
         fields = [
-            "id", "title", "description", "category", "region", "location",
+            "id", "title", "description", "category", "trades", "region", "location",
             "required_license", "bid_deadline", "start_date", "duration_text",
         ]
+
+    def validate_trades(self, value):
+        return _validate_trades(value)
+
+
+def _validate_trades(value):
+    from accounts.models import SPECIALTIES
+
+    keys = {k for k, _ in SPECIALTIES}
+    bad = [v for v in value if v not in keys]
+    if bad:
+        raise serializers.ValidationError(f"Άγνωστες ειδικότητες: {', '.join(bad)}")
+    return list(dict.fromkeys(value))
 
 
 class QuestionSerializer(serializers.ModelSerializer):

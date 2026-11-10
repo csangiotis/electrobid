@@ -1,12 +1,12 @@
 import { api } from "../api.js";
 import { setSession } from "../app.js";
-import { busy, esc, formData, options, state } from "../ui.js";
+import { busy, esc, formData, options, state, tradeChips } from "../ui.js";
 
 const brand = `
   <div class="auth-brand">
     <svg viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="7"/><path d="M18 4 8 18h7l-2 10 11-15h-7z"/></svg>
     <div><div class="auth-title">Electro<b>Bid</b></div>
-    <p>Προσφορές ηλεκτρολογικών έργων: ο εργολάβος ανεβάζει προμέτρηση και σχέδια, οι υπεργολάβοι τιμολογούν γραμμή-γραμμή.</p></div>
+    <p>Υπεργολαβίες για όλες τις ειδικότητες της οικοδομής: ο εργολάβος ανεβάζει προμέτρηση και σχέδια, οι υπεργολάβοι τιμολογούν γραμμή-γραμμή.</p></div>
   </div>`;
 
 export async function loginView(main) {
@@ -55,8 +55,7 @@ export async function registerView(main) {
       </div>
       <div class="sub-only">
         <label>Ειδικότητες</label>
-        <div class="chips">${state.choices.specialties.map((s) =>
-          `<label class="chip"><input type="checkbox" name="c_specialties" value="${esc(s.value)}"><span>${esc(s.label)}</span></label>`).join("")}</div>
+        <div class="chip-groups">${tradeChips("c_specialties")}</div>
         <label>Περιοχές δραστηριότητας</label>
         <div class="chips">${state.choices.regions.map((s) =>
           `<label class="chip"><input type="checkbox" name="c_service_regions" value="${esc(s.value)}"><span>${esc(s.label)}</span></label>`).join("")}</div>

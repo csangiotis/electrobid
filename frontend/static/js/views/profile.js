@@ -1,5 +1,5 @@
 import { api } from "../api.js";
-import { busy, confirmDialog, esc, options, state, toast } from "../ui.js";
+import { busy, confirmDialog, esc, options, state, toast, tradeChips } from "../ui.js";
 import { forgetPhoto, loadPhotos, projectCard } from "./directory.js";
 
 const chipBoxes = (list, name, selected) => state.choices[list].map((s) =>
@@ -33,7 +33,7 @@ export async function profileView(main, _p, stale) {
         <label>Προσωπικό (άτομα)<input name="employees" type="number" min="0" value="${esc(c.employees ?? "")}"></label>
       </div>
       <label>Παρουσίαση εταιρείας<textarea name="description" rows="4" placeholder="Τι κάνετε, σε τι είστε δυνατοί, εξοπλισμός, πιστοποιήσεις…">${esc(c.description)}</textarea></label>
-      <label>Ειδικότητες</label><div class="chips">${chipBoxes("specialties", "specialties", c.specialties)}</div>
+      <label>Ειδικότητες</label><div class="chip-groups">${tradeChips("specialties", c.specialties)}</div>
       <label>Περιοχές δραστηριότητας</label><div class="chips">${chipBoxes("regions", "service_regions", c.service_regions)}</div>
       <p class="muted small">Η επαλήθευση (σήμα ✓) γίνεται από τη διαχείριση της πλατφόρμας μετά από έλεγχο των στοιχείων της εταιρείας.</p>
       <div class="row end"><button class="btn primary">Αποθήκευση</button></div>
@@ -102,7 +102,7 @@ function openProjectDialog(p, onSaved) {
   dlg.innerHTML = `
   <form class="stack" id="pf">
     <h3>${p ? "Επεξεργασία έργου" : "Νέο έργο"}</h3>
-    <label>Τίτλος έργου<input name="title" required maxlength="200" value="${esc(p?.title)}" placeholder="π.χ. Ηλεκτρολογικά εμπορικού κέντρου 12.000 m²"></label>
+    <label>Τίτλος έργου<input name="title" required maxlength="200" value="${esc(p?.title)}" placeholder="π.χ. Γυψοσανίδες και ψευδοροφές εμπορικού κέντρου 12.000 m²"></label>
     <div class="grid2">
       <label>Πελάτης / κύριος έργου<input name="client" value="${esc(p?.client)}"></label>
       <label>Τοποθεσία<input name="location" value="${esc(p?.location)}"></label>
@@ -111,8 +111,8 @@ function openProjectDialog(p, onSaved) {
       <label>Κατηγορία<select name="category">${options("project_categories", p?.category || "", { empty: "—" })}</select></label>
       <label>Ύψος εργασιών<select name="value_range">${options("value_ranges", p?.value_range || "", { empty: "Δεν αναφέρεται" })}</select></label>
     </div>
-    <label>Αντικείμενο</label>
-    <div class="chips">${chipBoxes("specialties", "specialties", p?.specialties || [])}</div>
+    <label>Ειδικότητες έργου</label>
+    <div class="chip-groups compact">${tradeChips("specialties", p?.specialties || [])}</div>
     <label>Περιγραφή<textarea name="description" rows="3" placeholder="Τι περιλάμβανε, ιδιαιτερότητες, χρόνος εκτέλεσης…">${esc(p?.description)}</textarea></label>
     <label>Φωτογραφία <small>(JPG, PNG ή WEBP, έως 8 MB)</small><input type="file" name="photo" accept=".jpg,.jpeg,.png,.webp"></label>
     ${p?.has_photo ? `<label class="check"><input type="checkbox" name="remove_photo" value="1"> Αφαίρεση υπάρχουσας φωτογραφίας</label>` : ""}

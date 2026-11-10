@@ -1,5 +1,5 @@
 import { api } from "../api.js";
-import { esc, fmt, label, options, state, timeLeft, verifiedMark } from "../ui.js";
+import { esc, fmt, label, options, state, timeLeft, tradeTags, verifiedMark } from "../ui.js";
 
 // Φωτογραφίες έργων: χρειάζονται το token, οπότε φορτώνονται με fetch ως blob.
 const photoCache = new Map();
@@ -35,8 +35,7 @@ function companyCard(c) {
       <p class="muted small">${esc([c.city, c.region_display].filter(Boolean).join(", "))}</p></div>
     </div>
     ${c.description ? `<p class="clamp">${esc(c.description)}</p>` : ""}
-    <div class="chips static">${c.specialties.slice(0, 4).map((s) => `<span class="chip-s">${esc(label("specialties", s))}</span>`).join("")}
-      ${c.specialties.length > 4 ? `<span class="chip-s more">+${c.specialties.length - 4}</span>` : ""}</div>
+    <div class="chips static">${tradeTags(c.specialties, 4)}</div>
     <dl class="facts mini">
       <div><dt>Έργα</dt><dd>${c.projects_count}</dd></div>
       <div><dt>Περιοχές</dt><dd>${(c.service_regions || []).length || 1}</dd></div>

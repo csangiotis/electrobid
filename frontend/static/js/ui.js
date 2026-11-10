@@ -50,9 +50,15 @@ export function label(listName, value) {
 
 export function options(listName, selected, { empty } = {}) {
   const sel = Array.isArray(selected) ? selected : [selected];
-  const opts = (state.choices?.[listName] || [])
-    .map((c) => `<option value="${esc(c.value)}" ${sel.includes(c.value) ? "selected" : ""}>${esc(c.label)}</option>`)
-    .join("");
+  const opt = (c) => `<option value="${esc(c.value)}" ${sel.includes(c.value) ? "selected" : ""}>${esc(c.label)}</option>`;
+  const items = state.choices?.[listName] || [];
+  let opts;
+  if (items.some((c) => c.group)) {
+    const groups = [...new Set(items.map((c) => c.group))];
+    opts = groups.map((g) => `<optgroup label="${esc(g)}">${items.filter((c) => c.group === g).map(opt).join("")}</optgroup>`).join("");
+  } else {
+    opts = items.map(opt).join("");
+  }
   return (empty !== undefined ? `<option value="">${esc(empty)}</option>` : "") + opts;
 }
 
@@ -137,4 +143,20 @@ export function toLocalInput(iso) {
 }
 export function fromLocalInput(v) {
   return v ? new Date(v).toISOString() : null;
+}
+
+// Ειδικότητες ως επιλέξιμα chips, ομαδοποιημένα (Η/Μ, οικοδομικά κ.λπ.)
+export function tradeChips(name, selected = []) {
+  const items = state.choices?.specialties || [];
+  const groups = [...new Set(items.map((c) => c.group))];
+  return groups.map((g) => `
+    <div class="chip-group"><span class="chip-group-title">${esc(g)}</span>
+      <div class="chips">${items.filter((c) => c.group === g).map((c) =>
+        `<label class="chip"><input type="checkbox" name="${name}" value="${esc(c.value)}" ${selected.includes(c.value) ? "checked" : ""}><span>${esc(c.label)}</span></label>`).join("")}</div>
+    </div>`).join("");
+}
+
+export function tradeTags(keys = [], max = 99) {
+  const shown = keys.slice(0, max).map((k) => `<span class="chip-s">${esc(label("specialties", k))}</span>`).join("");
+  return shown + (keys.length > max ? `<span class="chip-s more">+${keys.length - max}</span>` : "");
 }

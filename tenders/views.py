@@ -68,6 +68,15 @@ class JobViewSet(viewsets.ModelViewSet):
             qs = qs.filter(region=params["region"])
         if params.get("category"):
             qs = qs.filter(category=params["category"])
+        # Φίλτρο ειδικότητας (JSON λίστα· φιλτράρεται στην Python για συμβατότητα με SQLite)
+        wanted = set()
+        if params.get("trade"):
+            wanted = {params["trade"]}
+        elif params.get("mine") in ("1", "true") and getattr(user, "company", None):
+            wanted = set(user.company.specialties or [])
+        if wanted:
+            ids = [pk for pk, trades in qs.values_list("id", "trades") if wanted & set(trades or [])]
+            qs = qs.filter(id__in=ids)
         if params.get("scope") != "mine":
             qs = qs.order_by("bid_deadline")
         if params.get("q"):
@@ -138,6 +147,8 @@ class JobViewSet(viewsets.ModelViewSet):
         if job.status != Job.Status.DRAFT:
             raise ValidationError("Η εργασία έχει ήδη δημοσιευτεί.")
         errors = []
+        if not job.trades:
+            errors.append("Επιλέξτε τουλάχιστον μία ειδικότητα.")
         if not job.boq_items.exclude(quantity=None).exists():
             errors.append("Προσθέστε προμέτρηση με τουλάχιστον μία γραμμή με ποσότητα.")
         if not job.bid_deadline or job.bid_deadline <= timezone.now() + timedelta(hours=1):

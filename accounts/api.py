@@ -10,7 +10,7 @@ from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 
 from .models import (
-    LICENSE_CATEGORIES, PROJECT_CATEGORIES, REGIONS, SPECIALTIES, VALUE_RANGES, Company, User,
+    LICENSE_CATEGORIES, PROJECT_CATEGORIES, REGIONS, SPECIALTIES, SPECIALTY_GROUP, VALUE_RANGES, Company, User,
 )
 
 REGION_KEYS = {k for k, _ in REGIONS}
@@ -154,7 +154,7 @@ def choices(request):
     return Response({
         "regions": pairs(REGIONS),
         "licenses": pairs(LICENSE_CATEGORIES),
-        "specialties": pairs(SPECIALTIES),
+        "specialties": [{"value": k, "label": v, "group": SPECIALTY_GROUP[k]} for k, v in SPECIALTIES],
         "roles": pairs(User.Role.choices),
         "job_categories": pairs(Job.Category.choices),
         "document_kinds": pairs(JobDocument.Kind.choices),

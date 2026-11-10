@@ -58,7 +58,7 @@ class TenderFlowTests(APITestCase):
         self.as_(self.gc)
         r = self.client.post("/api/jobs", {
             "title": "Ηλεκτρολογικά κτιρίου γραφείων", "region": "attiki",
-            "category": "commercial", "required_license": required_license,
+            "category": "commercial", "required_license": required_license, "trades": ["power", "low_voltage"],
             "bid_deadline": (timezone.now() + timedelta(days=7)).isoformat(),
         }, format="json")
         self.assertEqual(r.status_code, 201, r.data)
@@ -188,6 +188,31 @@ class TenderFlowTests(APITestCase):
         ids = [j["id"] for j in self.client.get("/api/jobs").data]
         self.assertEqual(ids, [job_id])
         self.assertEqual(self.client.get("/api/jobs?region=kriti").data, [])
+
+    def test_trades_required_to_publish_and_filterable(self):
+        self.as_(self.gc)
+        r = self.client.post("/api/jobs", {"title": "Γυψοσανίδες", "region": "attiki", "trades": ["drywall"],
+                                           "bid_deadline": (timezone.now() + timedelta(days=3)).isoformat()}, format="json")
+        drywall = r.data["id"]
+        self.client.put(f"/api/jobs/{drywall}/boq", [{"description": "Χώρισμα", "unit": "m²", "quantity": 100}], format="json")
+        self.assertEqual(self.client.post(f"/api/jobs/{drywall}/publish").status_code, 200)
+        no_trade = self.client.post("/api/jobs", {"title": "Χωρίς ειδικότητα", "region": "attiki",
+                                                  "bid_deadline": (timezone.now() + timedelta(days=3)).isoformat()}, format="json").data["id"]
+        self.client.put(f"/api/jobs/{no_trade}/boq", [{"description": "x", "quantity": 1}], format="json")
+        r = self.client.post(f"/api/jobs/{no_trade}/publish")
+        self.assertEqual(r.status_code, 400)
+        self.assertIn("ειδικότητα", str(r.data))
+        bad = self.client.post("/api/jobs", {"title": "x", "region": "attiki", "trades": ["juggling"]}, format="json")
+        self.assertEqual(bad.status_code, 400)
+
+        electrical = self.create_published_job()
+        self.as_(self.sub1)
+        ids = lambda q: [j["id"] for j in self.client.get("/api/jobs", q).data]
+        self.assertEqual(ids({"trade": "drywall"}), [drywall])
+        self.assertEqual(set(ids({})), {drywall, electrical})
+        self.sub1.company.specialties = ["power"]
+        self.sub1.company.save()
+        self.assertEqual(ids({"mine": "1"}), [electrical])
 
     def test_marketplace_search_ignores_case_and_accents(self):
         job_id = self.create_published_job()

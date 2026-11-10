@@ -1,5 +1,5 @@
 import { api } from "../api.js";
-import { bidBadge, companyLink, esc, fmt, options, phaseBadge, state, timeLeft, verifiedMark } from "../ui.js";
+import { bidBadge, companyLink, esc, fmt, options, phaseBadge, state, timeLeft, tradeTags, verifiedMark } from "../ui.js";
 
 function jobCard(j) {
   const me = state.me;
@@ -12,6 +12,7 @@ function jobCard(j) {
       ${j.is_owner ? `<span class="badge muted">Δική σας</span>` : ""}
     </div>
     <h3>${esc(j.title)}</h3>
+    ${j.trades?.length ? `<div class="chips static">${tradeTags(j.trades, 3)}</div>` : ""}
     <p class="by">${esc(j.contractor.name)} ${verifiedMark(j.contractor)}</p>
     <dl class="facts">
       <div><dt>Τοποθεσία</dt><dd>${esc(j.location || j.region_display)}</dd></div>
@@ -37,13 +38,16 @@ export async function marketView(main, _p, stale) {
   <form class="filters" id="flt">
     <input type="search" name="q" placeholder="Αναζήτηση σε τίτλο, περιγραφή, τοποθεσία" value="${esc(params.get("q") || "")}">
     <select name="region">${options("regions", params.get("region") || "", { empty: "Όλες οι περιφέρειες" })}</select>
-    <select name="category">${options("job_categories", params.get("category") || "", { empty: "Όλες οι κατηγορίες" })}</select>
+    <select name="trade">${options("specialties", params.get("trade") || "", { empty: "Όλες οι ειδικότητες" })}</select>
+    <select name="category">${options("job_categories", params.get("category") || "", { empty: "Όλα τα είδη έργων" })}</select>
+    ${state.me.role === "subcontractor" ? `<label class="check"><input type="checkbox" name="mine" value="1"> Μόνο στις ειδικότητές μου</label>` : ""}
   </form>
   <div id="list" class="cards"><div class="loading">Φόρτωση…</div></div>`;
 
   const flt = main.querySelector("#flt");
-  if (state.me.role === "subcontractor" && !params.toString() && state.me.company?.service_regions?.length === 1) {
-    flt.region.value = state.me.company.service_regions[0];
+  if (state.me.role === "subcontractor" && !params.toString()) {
+    if (state.me.company?.specialties?.length) flt.mine.checked = true;
+    if (state.me.company?.service_regions?.length === 1) flt.region.value = state.me.company.service_regions[0];
   }
   let timer;
   const load = async () => {
@@ -53,7 +57,7 @@ export async function marketView(main, _p, stale) {
     const list = main.querySelector("#list");
     list.innerHTML = jobs.length
       ? jobs.map(jobCard).join("")
-      : `<div class="empty"><h2>Καμία ανοιχτή εργασία</h2><p>Δοκιμάστε άλλα φίλτρα ή ελέγξτε ξανά αργότερα.</p></div>`;
+      : `<div class="empty"><h2>Καμία ανοιχτή εργασία</h2><p>Δοκιμάστε άλλα φίλτρα${state.me.role === "subcontractor" ? " ή ξεμαρκάρετε το «Μόνο στις ειδικότητές μου»" : ""}, ή ελέγξτε ξανά αργότερα.</p></div>`;
   };
   flt.addEventListener("input", () => { clearTimeout(timer); timer = setTimeout(load, 250); });
   flt.addEventListener("submit", (e) => e.preventDefault());

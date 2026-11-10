@@ -9,7 +9,7 @@ from accounts.models import LICENSE_CATEGORIES, REGIONS
 
 
 class Job(models.Model):
-    """Μια εργασία (διαγωνισμός) που δημοσιεύει ο εργολάβος."""
+    """Μια εργασία (διαγωνισμός υπεργολαβίας) που δημοσιεύει ο εργολάβος."""
 
     class Status(models.TextChoices):
         DRAFT = "draft", "Πρόχειρο"
@@ -33,6 +33,8 @@ class Job(models.Model):
     category = models.CharField(
         "κατηγορία", max_length=20, choices=Category.choices, default=Category.COMMERCIAL
     )
+    # Ειδικότητες που αφορά η εργασία (κλειδιά από accounts.models.SPECIALTIES)
+    trades = models.JSONField("ειδικότητες", default=list, blank=True)
     region = models.CharField("περιφέρεια", max_length=40, choices=REGIONS)
     location = models.CharField("τοποθεσία", max_length=200, blank=True)
     required_license = models.CharField(

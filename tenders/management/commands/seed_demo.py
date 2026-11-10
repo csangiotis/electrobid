@@ -57,6 +57,27 @@ PV_BOQ = [
     ("7", "Γείωση και ισοδυναμικές συνδέσεις", "κατ", 1),
 ]
 
+HVAC_BOQ = [
+    ("1", "ΥΔΡΕΥΣΗ - ΑΠΟΧΕΤΕΥΣΗ", None, None),
+    ("1.1", "Σωλήνας πολυστρωματικός PEX-AL-PEX Φ20 με μόνωση", "m", 850),
+    ("1.2", "Σωλήνας αποχέτευσης PP Φ110", "m", 240),
+    ("1.3", "Συλλέκτης ύδρευσης 6 κυκλωμάτων", "τεμ", 8),
+    ("1.4", "Εγκατάσταση ειδών υγιεινής (προμήθεια εργοδότη)", "τεμ", 46),
+    ("2", "ΚΛΙΜΑΤΙΣΜΟΣ - ΑΕΡΙΣΜΟΣ", None, None),
+    ("2.1", "Σύστημα VRF: εσωτερική μονάδα κασέτας, εγκατάσταση", "τεμ", 38),
+    ("2.2", "Ψυκτικές σωληνώσεις χαλκού με μόνωση", "m", 1100),
+    ("2.3", "Αεραγωγοί γαλβανιζέ με μόνωση", "m²", 420),
+    ("2.4", "Μονάδα ανάκτησης θερμότητας 3.000 m³/h", "τεμ", 2),
+]
+
+DRYWALL_BOQ = [
+    ("1", "Χώρισμα γυψοσανίδας 10 cm με ηχομόνωση πετροβάμβακα", "m²", 1350),
+    ("2", "Επένδυση τοίχου με γυψοσανίδα σε μεταλλικό σκελετό", "m²", 600),
+    ("3", "Ψευδοροφή ορυκτών ινών 60x60 με σκελετό", "m²", 2400),
+    ("4", "Ψευδοροφή γυψοσανίδας με περιμετρική σκοτία", "m²", 380),
+    ("5", "Θυρίδα επίσκεψης 60x60", "τεμ", 45),
+]
+
 HOTEL_BOQ = [
     ("Α", "ΔΩΜΑΤΙΑ (48)", None, None),
     ("Α.1", "Αποξήλωση παλαιάς ηλεκτρολογικής εγκατάστασης δωματίου", "τεμ", 48),
@@ -171,6 +192,43 @@ class Command(BaseCommand):
                               specialties=["power", "lighting", "low_voltage"], service_regions=["kriti"],
                               description="Ανακαινίσεις ξενοδοχείων και συστήματα κάρτας δωματίων."),
         }
+        subs.update({
+            "plumb": self.user("ydrothermiki@demo.gr", "subcontractor", "Σπύρος", "Αλεξίου",
+                               name="Υδροθερμική ΕΠΕ", vat_number="804567890", region="attiki", city="Μαρούσι",
+                               verified=True, employees=18, founded_year=2007, phone="210 8000 456",
+                               specialties=["plumbing", "heating", "hvac", "gas", "fire_suppression"],
+                               service_regions=["attiki", "sterea_ellada"],
+                               description="Υδραυλικά, θέρμανση, κλιματισμός VRF και πυρόσβεση για κτίρια γραφείων και ξενοδοχεία."),
+            "cool": self.user("klimatiki@demo.gr", "subcontractor", "Άννα", "Ρήγα",
+                              name="Κλιματική Βορείου Ελλάδος", vat_number="805678901", region="kentriki_makedonia",
+                              city="Θεσσαλονίκη", employees=9, founded_year=2014,
+                              specialties=["hvac", "heating"], service_regions=["kentriki_makedonia", "thessalia"],
+                              description="Κλιματισμός, αντλίες θερμότητας και αεραγωγοί."),
+            "dry": self.user("gypsotechniki@demo.gr", "subcontractor", "Παύλος", "Μιχαήλ",
+                             name="Γυψοτεχνική ΙΚΕ", vat_number="806789012", region="attiki", city="Αχαρνές",
+                             verified=True, employees=22, founded_year=2010,
+                             specialties=["drywall", "insulation", "painting", "plaster"], service_regions=["attiki", "peloponnisos"],
+                             description="Γυψοσανίδες, ψευδοροφές, μονώσεις και χρωματισμοί. Συνεργεία έως 20 ατόμων."),
+            "alu": self.user("aluminia@demo.gr", "subcontractor", "Θανάσης", "Νικολάου",
+                             name="Αλουμίνια Νικολάου ΑΕ", vat_number="807890123", region="attiki", city="Κορωπί",
+                             employees=30, founded_year=1996,
+                             specialties=["aluminium", "glazing", "metalwork"], service_regions=["attiki", "notio_aigaio", "kriti"],
+                             description="Κουφώματα αλουμινίου και υαλοπετάσματα για επαγγελματικά κτίρια και ξενοδοχεία."),
+        })
+        self.projects(subs["plumb"].company, [
+            ("Υδραυλικά και VRF ξενοδοχείου 90 δωματίων", "ΤΕΧΝΟΔΟΜΙΚΗ ΑΤΕ", "Βουλιαγμένη", "attiki", 2024, "hospitality",
+             "200_1m", ["plumbing", "hvac"], "Πλήρης υδραυλική εγκατάσταση και VRF 180 kW.", True),
+            ("Καταιονισμός υπόγειου σταθμού στάθμευσης", "Εμπορικό κέντρο", "Μαρούσι", "attiki", 2023, "commercial",
+             "50_200", ["fire_suppression"], "", False),
+        ])
+        self.projects(subs["dry"].company, [
+            ("Ψευδοροφές και χωρίσματα γραφείων 6.000 m²", "Ασφαλιστική εταιρεία", "Αθήνα", "attiki", 2025, "commercial",
+             "200_1m", ["drywall", "insulation"], "Ηχομονωτικά χωρίσματα και ψευδοροφές ορυκτών ινών σε 4 ορόφους.", True),
+        ])
+        self.projects(subs["alu"].company, [
+            ("Υαλοπέτασμα κτιρίου γραφείων", "Κατασκευαστική", "Κηφισιά", "attiki", 2024, "commercial", "gt1m",
+             ["glazing", "aluminium"], "Structural glazing 1.800 m².", True),
+        ])
         self.projects(gc.company, [
             ("Κτίριο γραφείων Κηφισίας 9.000 m²", "Ιδιώτης επενδυτής", "Κηφισιά", "attiki", 2025, "commercial", "gt1m",
              ["power", "low_voltage", "fire"], "Γενική εργολαβία με πλήρη Η/Μ, LEED Gold.", True),
@@ -211,7 +269,7 @@ class Command(BaseCommand):
                                        "(περίπου 3.200 m²): ισχυρά, ασθενή, πυρανίχνευση.\n\n"
                                        "Τα φωτιστικά σώματα τα προμηθεύει ο εργοδότης· ο υπεργολάβος "
                                        "αναλαμβάνει την εγκατάσταση. Εργοτάξιο με γερανό και ανυψωτικό."),
-                          category="commercial", location="Μαρούσι",
+                          category="commercial", location="Μαρούσι", trades=["power", "low_voltage", "fire"],
                           deadline=now + timedelta(days=1), start=now.date() + timedelta(days=30),
                           duration="5 μήνες", docs=["Κάτοψη ισογείου", "Κάτοψη τυπικού ορόφου", "Μονογραμμικό ΓΠΧΤ"])
         for key, terms, days in [("sub1", "30% προκαταβολή, μηνιαίοι λογαριασμοί", 140),
@@ -230,7 +288,7 @@ class Command(BaseCommand):
         # 2) Φωτοβολταϊκό: ανοιχτό, 1 υποβληθείσα προσφορά, 1 ερώτηση
         pv = self.job(gc, "Φωτοβολταϊκό 100 kWp σε στέγη αποθήκης", PV_BOQ,
                       description="Εγκατάσταση φωτοβολταϊκού σταθμού net-billing σε μεταλλική στέγη αποθήκης.",
-                      category="energy", location="Ασπρόπυργος",
+                      category="energy", location="Ασπρόπυργος", trades=["pv", "power"],
                       deadline=now + timedelta(days=5), start=now.date() + timedelta(days=21),
                       duration="6 εβδομάδες", docs=["Διάταξη πλαισίων στέγης"])
         self.bid(pv, subs["sub2"], [52, 18, 900, "1.35", 38, 2400, 1600], duration_days=35)
@@ -240,16 +298,32 @@ class Command(BaseCommand):
         # 3) Ξενοδοχείο Κρήτη: ανοιχτό, καμία προσφορά
         self.job(gc, "Ανακαίνιση ηλεκτρολογικών ξενοδοχείου 48 δωματίων", HOTEL_BOQ,
                  description="Εργασίες κατά τη χειμερινή περίοδο, με το ξενοδοχείο κλειστό.",
-                 category="hospitality", location="Ηράκλειο", region="kriti",
+                 category="hospitality", location="Ηράκλειο", region="kriti", trades=["power", "lighting"],
                  deadline=now + timedelta(days=12), start=now.date() + timedelta(days=40), duration="3 μήνες")
 
-        # 4) Πρόχειρο
+        # 4) Υδραυλικά και κλιματισμός: ανοιχτό, 1 προσφορά
+        hvac = self.job(gc, "Υδραυλικά και κλιματισμός VRF κτιρίου γραφείων", HVAC_BOQ,
+                        description=("Ύδρευση, αποχέτευση και κλιματισμός VRF στο νέο κτίριο γραφείων στο Μαρούσι. "
+                                     "Οι εξωτερικές μονάδες VRF και τα είδη υγιεινής είναι προμήθεια εργοδότη."),
+                        category="commercial", location="Μαρούσι", trades=["plumbing", "hvac"],
+                        deadline=now + timedelta(days=8), start=now.date() + timedelta(days=35),
+                        duration="4 μήνες", docs=["Κάτοψη Η/Μ τυπικού ορόφου"])
+        self.bid(hvac, subs["plumb"], ["7.2", "11", 280, 45, 160, 38, 42, 6800], duration_days=110,
+                 payment_terms="Μηνιαίοι λογαριασμοί")
+
+        # 5) Γυψοσανίδες: ανοιχτό, χωρίς προσφορές
+        self.job(gc, "Γυψοσανίδες και ψευδοροφές γραφείων", DRYWALL_BOQ,
+                 description="Εσωτερικά χωρίσματα και ψευδοροφές 4 ορόφων γραφείων.",
+                 category="commercial", location="Μαρούσι", trades=["drywall", "insulation"],
+                 deadline=now + timedelta(days=10), start=now.date() + timedelta(days=70), duration="10 εβδομάδες")
+
+        # 6) Πρόχειρο
         Job.objects.create(contractor=gc, title="Σταθμοί φόρτισης ΗΟ σε υπόγειο πάρκινγκ",
-                           region="attiki", location="Γλυφάδα", category="commercial")
+                           region="attiki", location="Γλυφάδα", category="commercial", trades=["ev", "power"])
 
         self.stdout.write(self.style.SUCCESS(
             "Έτοιμο. Εργολάβοι: ergolavos@demo.gr, kritikataskeves@demo.gr. Υπεργολάβοι: "
-            "hlektrotexniki@demo.gr, volt@demo.gr, papadopoulos@demo.gr, thessaliko@demo.gr, kritiled@demo.gr. "
+            "hlektrotexniki@demo.gr, volt@demo.gr, ydrothermiki@demo.gr, gypsotechniki@demo.gr, aluminia@demo.gr κ.ά. "
             f"Κωδικός: {PASSWORD}"))
 
     def user(self, email, role, first, last, verified=False, **company):

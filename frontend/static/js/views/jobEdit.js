@@ -1,6 +1,6 @@
 import { api, download } from "../api.js";
 import {
-  busy, confirmDialog, esc, fmt, formData, fromLocalInput, options, parseNum, toast, toLocalInput,
+  busy, confirmDialog, esc, fmt, formData, fromLocalInput, options, parseNum, toast, toLocalInput, tradeChips,
 } from "../ui.js";
 
 export async function jobEditView(main, [id], stale) {
@@ -20,8 +20,11 @@ export async function jobEditView(main, [id], stale) {
       <section class="panel" id="s-info">
         <h2><span class="step">1</span> Στοιχεία εργασίας</h2>
         <form id="info" class="stack">
-          <label>Τίτλος<input name="title" required maxlength="200" value="${esc(job?.title)}" placeholder="π.χ. Ηλεκτρολογικά κτιρίου γραφείων 4 ορόφων"></label>
+          <label>Τίτλος<input name="title" required maxlength="200" value="${esc(job?.title)}" placeholder="π.χ. Υδραυλικά και κλιματισμός κτιρίου γραφείων 4 ορόφων"></label>
           <label>Περιγραφή εργασιών<textarea name="description" rows="5" placeholder="Αντικείμενο, τι περιλαμβάνεται, τι προμηθεύει ο εργολάβος, ιδιαιτερότητες εργοταξίου…">${esc(job?.description)}</textarea></label>
+          <div><label>Ειδικότητες που αφορά η εργασία</label>
+            <p class="muted small">Οι υπεργολάβοι των ειδικοτήτων αυτών βλέπουν την εργασία στις «δικές τους».</p>
+            <div class="chip-groups compact">${tradeChips("trades", job?.trades || [])}</div></div>
           <div class="grid3">
             <label>Κατηγορία<select name="category">${options("job_categories", job?.category || "commercial")}</select></label>
             <label>Περιφέρεια<select name="region" required>${options("regions", job?.region || "attiki")}</select></label>
@@ -61,6 +64,7 @@ export async function jobEditView(main, [id], stale) {
   info.onsubmit = (e) => {
     e.preventDefault();
     const body = formData(info);
+    body.trades = new FormData(info).getAll("trades");
     body.bid_deadline = fromLocalInput(body.bid_deadline);
     body.start_date = body.start_date || null;
     busy(info.querySelector("button"), async () => {
@@ -200,6 +204,7 @@ export async function jobEditView(main, [id], stale) {
     const deadlineOk = job.bid_deadline && new Date(job.bid_deadline) - Date.now() > 3.6e6;
     const checks = [
       [!!job.title, "Τίτλος και περιοχή"],
+      [job.trades?.length > 0, job.trades?.length ? `Ειδικότητες: ${job.trades.length}` : "Τουλάχιστον μία ειδικότητα"],
       [deadlineOk, job.bid_deadline ? `Προθεσμία: ${fmt.datetime(job.bid_deadline)}` : "Προθεσμία προσφορών (τουλάχιστον 1 ώρα από τώρα)"],
       [lines > 0 && !dirty, lines ? `Προμέτρηση: ${lines} γραμμές${dirty ? " (μη αποθηκευμένη)" : ""}` : "Προμέτρηση με ποσότητες"],
       [docs.length > 0, docs.length ? `${docs.length} έγγραφα` : "Σχέδια (προαιρετικά, συνιστώνται)", true],

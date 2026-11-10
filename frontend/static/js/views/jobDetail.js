@@ -1,6 +1,6 @@
 import { api, download } from "../api.js";
 import {
-  bidBadge, busy, companyLink, confirmDialog, esc, fmt, fromLocalInput, options, parseNum, phaseBadge, state,
+  bidBadge, busy, companyLink, confirmDialog, esc, fmt, fromLocalInput, options, parseNum, phaseBadge, state, tradeTags,
   timeLeft, toast, toLocalInput, verifiedMark,
 } from "../ui.js";
 
@@ -30,6 +30,7 @@ export async function jobDetailView(main, [id], stale) {
     </div>
     <div class="row wrap" id="owner-actions"></div>
   </div>
+  ${job.trades?.length ? `<div class="chips static job-trades">${tradeTags(job.trades)}</div>` : ""}
   <dl class="facts wide">
     <div><dt>Τοποθεσία</dt><dd>${esc([job.location, job.region_display].filter(Boolean).join(", "))}</dd></div>
     <div><dt>Κατηγορία</dt><dd>${esc(job.category_display)}</dd></div>
