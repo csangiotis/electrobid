@@ -72,7 +72,7 @@ class JobListSerializer(serializers.ModelSerializer):
             "id", "title", "category", "category_display", "trades", "visibility", "my_invitation",
             "region", "region_display",
             "location", "required_license", "license_display", "bid_deadline",
-            "start_date", "duration_text", "status", "phase", "revision", "published_at",
+            "start_date", "duration_text", "status", "phase", "revision", "published_at", "bafo_deadline",
             "contractor", "boq_count", "documents_count", "bids_count",
             "my_bid_status", "is_owner", "created_at",
         ]
@@ -116,7 +116,7 @@ class JobDetailSerializer(JobListSerializer):
     awarded = serializers.SerializerMethodField()
 
     class Meta(JobListSerializer.Meta):
-        fields = JobListSerializer.Meta.fields + ["description", "documents", "awarded", "invitation"]
+        fields = JobListSerializer.Meta.fields + ["description", "documents", "awarded", "invitation", "bafo_message"]
 
     invitation = serializers.SerializerMethodField()
 
@@ -126,14 +126,22 @@ class JobDetailSerializer(JobListSerializer):
         return {"status": inv.status, "message": inv.message, "created_at": inv.created_at} if inv else None
 
     def get_awarded(self, obj):
-        bid = obj.awarded_bid
-        if not bid:
+        awards = list(obj.awards.select_related("bid__subcontractor__company"))
+        if not awards:
             return None
         user = self.context["request"].user
-        if user.id in (obj.contractor_id, bid.subcontractor_id):
-            return {"bid_id": bid.id, "company": company_brief(bid.subcontractor),
-                    "total": bid.total(), "is_me": user.id == bid.subcontractor_id}
-        return {"bid_id": None, "is_me": False}
+        from .models import boq_sections
+
+        titles = {sid: t for sid, _, t, _ in boq_sections(list(obj.boq_items.all()))}
+        mine = [a for a in awards if a.bid.subcontractor_id == user.id]
+        visible = awards if user.id == obj.contractor_id else mine
+        return {
+            "is_me": bool(mine),
+            "count": len(awards),
+            "awards": [{"bid_id": a.bid_id, "company": company_brief(a.bid.subcontractor),
+                        "sections": [titles.get(s, "") for s in a.sections], "amount": a.amount,
+                        "is_me": a.bid.subcontractor_id == user.id} for a in visible],
+        }
 
 
 class JobWriteSerializer(serializers.ModelSerializer):
@@ -180,7 +188,7 @@ class QuestionSerializer(serializers.ModelSerializer):
 class BidLineSerializer(serializers.ModelSerializer):
     class Meta:
         model = BidLine
-        fields = ["item", "unit_price", "note"]
+        fields = ["item", "unit_price", "original_unit_price", "note"]
 
 
 class BidLineWriteSerializer(serializers.Serializer):
@@ -202,12 +210,22 @@ class BidSerializer(serializers.ModelSerializer):
         fields = [
             "id", "job", "status", "notes", "exclusions", "payment_terms",
             "duration_days", "validity_days", "job_revision", "submitted_at",
-            "updated_at", "lines", "total", "outdated",
+            "updated_at", "lines", "total", "outdated", "excluded_sections",
+            "bafo_invited", "bafo_submitted_at", "can_edit", "awards",
         ]
         read_only_fields = ["job", "status", "job_revision", "submitted_at", "updated_at"]
 
     def get_total(self, obj):
         return obj.total()
+
+    can_edit = serializers.SerializerMethodField()
+    awards = serializers.SerializerMethodField()
+
+    def get_can_edit(self, obj):
+        return obj.can_edit()
+
+    def get_awards(self, obj):
+        return [{"sections": a.sections, "amount": a.amount} for a in obj.awards.all()]
 
     def get_outdated(self, obj):
         return obj.status == Bid.Status.SUBMITTED and obj.job_revision < obj.job.revision
@@ -219,6 +237,7 @@ class BidWriteSerializer(serializers.Serializer):
     payment_terms = serializers.CharField(max_length=300, allow_blank=True, required=False)
     duration_days = serializers.IntegerField(min_value=1, allow_null=True, required=False)
     validity_days = serializers.IntegerField(min_value=1, required=False)
+    excluded_sections = serializers.ListField(child=serializers.IntegerField(min_value=0), required=False)
     lines = BidLineWriteSerializer(many=True, required=False)
 
 
@@ -237,4 +256,4 @@ class MyBidListSerializer(serializers.ModelSerializer):
     def get_won(self, obj):
         if obj.job.status != Job.Status.AWARDED:
             return None
-        return obj.job.awarded_bid_id == obj.id
+        return obj.awards.exists()

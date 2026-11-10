@@ -4,6 +4,7 @@ import {
   timeLeft, toast, toLocalInput, verifiedMark,
 } from "../ui.js";
 import { invitesPanel } from "./invites.js";
+import { awardedBanner, compare, myBid } from "./bidding.js";
 
 export async function jobDetailView(main, [id], stale) {
   const [job, boq] = await Promise.all([api(`jobs/${id}`), api(`jobs/${id}/boq`)]);
@@ -63,19 +64,13 @@ export async function jobDetailView(main, [id], stale) {
   await views[tab](el, job, boq, stale);
 }
 
-function awardedBanner(job) {
-  if (job.awarded.is_me) return `<div class="banner ok"><b>Συγχαρητήρια, η εργασία ανατέθηκε σε εσάς.</b> Ο εργολάβος θα επικοινωνήσει για τα επόμενα βήματα.</div>`;
-  if (job.is_owner) return `<div class="banner ok">Ανατέθηκε σε <b>${companyLink(job.awarded.company)}</b> με ${fmt.money(job.awarded.total)}.</div>`;
-  return `<div class="banner">Η εργασία έχει ανατεθεί.</div>`;
-}
-
 function ownerActions(box, job) {
   if (job.phase === "bidding") {
     box.innerHTML = `
       <button class="btn sm" data-a="extend">Παράταση προθεσμίας</button>
       <button class="btn sm" data-a="close">Λήξη υποβολής τώρα</button>
       <button class="btn sm ghost danger-text" data-a="cancel">Ακύρωση</button>`;
-  } else if (job.phase === "evaluation") {
+  } else if (job.phase === "evaluation" || job.phase === "bafo") {
     box.innerHTML = `<button class="btn sm ghost danger-text" data-a="cancel">Ακύρωση εργασίας</button>`;
   }
   box.onclick = async (e) => {
@@ -219,219 +214,5 @@ async function questions(el, job, _boq, stale) {
     const reload = () => dispatchEvent(new HashChangeEvent("hashchange"));
     if (f.id === "ask") busy(f.querySelector("button"), async () => { await api(`jobs/${job.id}/questions`, { method: "POST", body: { text: f.text.value } }); toast("Η ερώτηση στάλθηκε.", "ok"); reload(); });
     if (f.dataset.q) busy(f.querySelector("button"), async () => { await api(`jobs/${job.id}/questions/${f.dataset.q}/answer`, { method: "POST", body: { answer: f.answer.value } }); reload(); });
-  });
-}
-
-// --- Προσφορά υπεργολάβου --------------------------------------------------------
-async function myBid(el, job, boq, stale) {
-  let bid = await api(`jobs/${job.id}/my-bid`);
-  if (stale()) return;
-  const lines = boq.filter((r) => !r.is_section);
-  const editable = job.phase === "bidding";
-  const prices = new Map((bid?.lines || []).map((l) => [l.item, l.unit_price]));
-  const notes = new Map((bid?.lines || []).map((l) => [l.item, l.note]));
-
-  if (!bid && !editable) {
-    el.innerHTML = `<div class="empty"><h2>Η υποβολή έχει κλείσει</h2><p>Δεν δώσατε προσφορά σε αυτή την εργασία.</p></div>`;
-    return;
-  }
-  const ro = editable ? "" : "readonly";
-  const val = (v) => (v === null || v === undefined ? "" : String(v).replace(".", ","));
-
-  el.innerHTML = `
-  ${bid?.outdated ? `<div class="banner warn"><b>Η εργασία έχει νέο συμπλήρωμα μετά την υποβολή σας.</b> Ελέγξτε τα έγγραφα και ενημερώστε την προσφορά.</div>` : ""}
-  ${bid?.status === "submitted" && editable ? `<div class="banner ok">Η προσφορά σας υποβλήθηκε ${fmt.datetime(bid.submitted_at)}. Μπορείτε να την αλλάξετε μέχρι τη λήξη (${esc(timeLeft(job.bid_deadline))}). Ο εργολάβος βλέπει τις τιμές μόνο μετά τη λήξη.</div>` : ""}
-  ${bid?.status === "withdrawn" ? `<div class="banner">Η προσφορά έχει αποσυρθεί. Αποθηκεύστε για να τη συνεχίσετε ως πρόχειρη.</div>` : ""}
-  <form id="bid" class="bid-layout">
-    <div class="panel">
-      <div class="row wrap"><h2 class="grow">Τιμολόγηση προμέτρησης ${bid ? bidBadge(bid.status) : ""}</h2>
-        ${editable ? `<button type="button" class="btn sm ghost" id="paste">Επικόλληση στήλης τιμών από Excel</button>` : ""}</div>
-      <p class="muted small">Τιμές μονάδας χωρίς ΦΠΑ. Αφήστε κενό αν δεν τιμολογείτε μια γραμμή και εξηγήστε στη σημείωση.</p>
-      <div class="table-wrap"><table class="tbl boq priced">
-        <thead><tr><th>Α/Α</th><th>Περιγραφή</th><th>Μον.</th><th class="num">Ποσότητα</th><th class="num">Τιμή μον. (€)</th><th class="num">Σύνολο</th></tr></thead>
-        <tbody>${boqRows(boq, (r) => `
-          <td class="num"><input class="price" name="p-${r.id}" inputmode="decimal" value="${val(prices.get(r.id))}" ${ro}>
-            ${notes.get(r.id) || editable ? `<input class="line-note" name="n-${r.id}" placeholder="σημείωση" value="${esc(notes.get(r.id) || "")}" ${ro}>` : ""}</td>
-          <td class="num mono line-total">—</td>`)}</tbody>
-      </table></div>
-    </div>
-    <aside class="panel sticky bid-side">
-      <div class="total-box"><small>Σύνολο προσφοράς (χωρίς ΦΠΑ)</small><b id="total">—</b>
-        <span id="missing" class="muted small"></span></div>
-      <label>Χρόνος εκτέλεσης (ημέρες)<input name="duration_days" type="number" min="1" value="${esc(bid?.duration_days ?? "")}" ${ro}></label>
-      <label>Ισχύς προσφοράς (ημέρες)<input name="validity_days" type="number" min="1" value="${esc(bid?.validity_days ?? 60)}" ${ro}></label>
-      <label>Όροι πληρωμής<input name="payment_terms" value="${esc(bid?.payment_terms)}" placeholder="π.χ. 30% προκαταβολή, λογαριασμοί ανά μήνα" ${ro}></label>
-      <label>Εξαιρέσεις / παραδοχές<textarea name="exclusions" rows="3" placeholder="π.χ. Δεν περιλαμβάνονται χωματουργικά" ${ro}>${esc(bid?.exclusions)}</textarea></label>
-      <label>Σημειώσεις<textarea name="notes" rows="2" ${ro}>${esc(bid?.notes)}</textarea></label>
-      ${editable ? `
-        <button type="button" class="btn block" id="save">Αποθήκευση${bid?.status === "submitted" ? " αλλαγών" : " πρόχειρου"}</button>
-        ${bid?.status !== "submitted" ? `<button type="button" class="btn primary block" id="submit">Υποβολή προσφοράς</button>` : ""}
-        ${bid?.status === "submitted" ? `<button type="button" class="btn ghost block danger-text" id="withdraw">Απόσυρση</button>` : ""}`
-      : `<p class="muted small">Η προθεσμία έληξε. Η προσφορά δεν αλλάζει πλέον.</p>`}
-    </aside>
-  </form>`;
-
-  const form = el.querySelector("#bid");
-  const recalc = () => {
-    let total = 0;
-    let missing = 0;
-    let bad = 0;
-    for (const r of lines) {
-      const input = form.elements[`p-${r.id}`];
-      const p = parseNum(input.value);
-      const cell = input.closest("tr").querySelector(".line-total");
-      input.classList.toggle("invalid", Number.isNaN(p) || p < 0);
-      if (p === null) { missing++; cell.textContent = "—"; continue; }
-      if (Number.isNaN(p) || p < 0) { bad++; cell.textContent = "!"; continue; }
-      const lt = p * Number(r.quantity);
-      total += lt;
-      cell.textContent = fmt.money(lt);
-    }
-    el.querySelector("#total").textContent = fmt.money(total);
-    el.querySelector("#missing").textContent = missing
-      ? `${missing} από ${lines.length} γραμμές χωρίς τιμή` : `Όλες οι ${lines.length} γραμμές τιμολογήθηκαν`;
-    return { missing, bad };
-  };
-  form.addEventListener("input", recalc);
-  recalc();
-  if (!editable) return;
-
-  const payload = () => {
-    const f = form.elements;
-    return {
-      duration_days: f.duration_days.value ? Number(f.duration_days.value) : null,
-      validity_days: Number(f.validity_days.value || 60),
-      payment_terms: f.payment_terms.value,
-      exclusions: f.exclusions.value,
-      notes: f.notes.value,
-      lines: lines.map((r) => {
-        const p = parseNum(f[`p-${r.id}`].value);
-        return { item: r.id, unit_price: p === null ? null : Math.round(p * 100) / 100, note: f[`n-${r.id}`]?.value || "" };
-      }),
-    };
-  };
-  const save = async () => {
-    if (recalc().bad) throw new Error("Διορθώστε τις τιμές που είναι σημειωμένες με κόκκινο.");
-    bid = await api(`jobs/${job.id}/my-bid`, { method: "PUT", body: payload() });
-    return bid;
-  };
-  const reload = () => dispatchEvent(new HashChangeEvent("hashchange"));
-
-  el.querySelector("#save").onclick = (e) => busy(e.target, async () => { await save(); toast("Αποθηκεύτηκε.", "ok"); reload(); });
-  el.querySelector("#submit")?.addEventListener("click", async (e) => {
-    const { missing } = recalc();
-    const msg = missing
-      ? `${missing} γραμμές δεν έχουν τιμή. Θα φαίνονται ως «χωρίς τιμή» στη σύγκριση. Υποβολή;`
-      : "Υποβολή της προσφοράς; Μπορείτε να την αλλάξετε μέχρι τη λήξη της προθεσμίας.";
-    if (!(await confirmDialog(msg, { ok: "Υποβολή" }))) return;
-    busy(e.target, async () => {
-      await save();
-      await api(`jobs/${job.id}/my-bid/submit`, { method: "POST" });
-      toast("Η προσφορά υποβλήθηκε.", "ok");
-      reload();
-    });
-  });
-  el.querySelector("#withdraw")?.addEventListener("click", async (e) => {
-    if (!(await confirmDialog("Απόσυρση της προσφοράς; Ο εργολάβος δεν θα τη δει.", { ok: "Απόσυρση", danger: true }))) return;
-    busy(e.target, async () => { await api(`jobs/${job.id}/my-bid/withdraw`, { method: "POST" }); reload(); });
-  });
-  el.querySelector("#paste").onclick = () => {
-    const dlg = document.createElement("dialog");
-    dlg.className = "modal wide";
-    dlg.innerHTML = `<form method="dialog" class="stack"><h3>Επικόλληση τιμών</h3>
-      <p class="muted small">Αντιγράψτε από το Excel τη στήλη με τις τιμές μονάδας (μία τιμή ανά γραμμή, με τη σειρά της προμέτρησης, χωρίς τις επικεφαλίδες ενοτήτων). Αναμένονται ${lines.length} τιμές.</p>
-      <textarea name="v" rows="10" class="mono"></textarea>
-      <div class="row end"><button class="btn ghost" value="no">Άκυρο</button><button class="btn primary" value="ok">Συμπλήρωση</button></div></form>`;
-    document.body.append(dlg);
-    dlg.showModal();
-    dlg.addEventListener("close", () => {
-      if (dlg.returnValue === "ok") {
-        const vals = dlg.querySelector("textarea").value.replace(/\r/g, "").split("\n");
-        while (vals.length && !vals[vals.length - 1].trim()) vals.pop();
-        lines.forEach((r, i) => { if (i < vals.length) form.elements[`p-${r.id}`].value = vals[i].split("\t").pop().replace(/[€\s]/g, ""); });
-        recalc();
-        toast(vals.length === lines.length ? `Συμπληρώθηκαν ${vals.length} τιμές.` : `Επικολλήθηκαν ${vals.length} τιμές για ${lines.length} γραμμές. Ελέγξτε την αντιστοίχιση.`, vals.length === lines.length ? "ok" : "warn");
-      }
-      dlg.remove();
-    });
-  };
-}
-
-// --- Σύγκριση προσφορών (εργολάβος) ---------------------------------------------------
-async function compare(el, job, _boq, stale) {
-  const data = await api(`jobs/${job.id}/comparison`);
-  if (stale()) return;
-
-  if (data.sealed) {
-    el.innerHTML = `
-    <div class="sealed panel">
-      <div class="seal">🔒</div>
-      <h2>Οι προσφορές είναι σφραγισμένες</h2>
-      <p>Έχουν υποβληθεί <b>${data.submitted_count}</b> ${data.submitted_count === 1 ? "προσφορά" : "προσφορές"}${data.drafts_count ? ` και ${data.drafts_count} υπεργολάβοι ετοιμάζουν προσφορά` : ""}.</p>
-      <p class="muted">Ανοίγουν στη λήξη της προθεσμίας, ${fmt.datetime(data.bid_deadline)} (${esc(timeLeft(data.bid_deadline))}). Έτσι όλοι οι υπεργολάβοι συμμετέχουν με τους ίδιους όρους.</p>
-    </div>`;
-    return;
-  }
-  if (!data.bidders.length) {
-    el.innerHTML = `<div class="empty"><h2>Δεν υποβλήθηκαν προσφορές</h2><p>Μπορείτε να ακυρώσετε την εργασία και να τη δημοσιεύσετε ξανά με νέα προθεσμία.</p></div>`;
-    return;
-  }
-  const B = data.bidders;
-  const lowest = data.stats.lowest_total;
-  const canAward = job.phase === "evaluation";
-  const diff = (t) => (lowest && t > lowest ? `+${(((t - lowest) / lowest) * 100).toFixed(1)}%` : "");
-
-  el.innerHTML = `
-  <div class="row wrap"><p class="muted grow">${B.length} προσφορές · διάμεσος συνόλων ${fmt.money(data.stats.median_total)}</p>
-    <button class="btn sm" id="xlsx">Εξαγωγή σύγκρισης σε Excel</button></div>
-  <div class="bidder-cards">${B.map((b) => `
-    <div class="bidder ${b.rank === 1 && !b.missing_count ? "best" : ""} ${data.awarded_bid_id === b.bid_id ? "awarded" : ""}">
-      <div class="rank">#${b.rank}</div>
-      <h3>${companyLink(b.company)} ${verifiedMark(b.company)}</h3>
-      <p class="muted small">${esc(b.company.region_display || "")}</p>
-      <div class="amount">${fmt.money(b.total)} <small>${diff(b.total)}</small></div>
-      <ul class="bidder-facts">
-        <li>${b.duration_days ? `${b.duration_days} ημέρες εκτέλεση` : "Χρόνος εκτέλεσης: —"}</li>
-        <li>${esc(b.payment_terms || "Όροι πληρωμής: —")}</li>
-        ${b.missing_count ? `<li class="bad">${b.missing_count} γραμμές χωρίς τιμή</li>` : ""}
-        ${b.outdated ? `<li class="warn">Δόθηκε πριν το τελευταίο συμπλήρωμα</li>` : ""}
-      </ul>
-      ${b.exclusions ? `<details><summary>Εξαιρέσεις</summary><p>${esc(b.exclusions)}</p></details>` : ""}
-      ${b.notes ? `<details><summary>Σημειώσεις</summary><p>${esc(b.notes)}</p></details>` : ""}
-      ${data.awarded_bid_id === b.bid_id ? `<span class="badge ok">Ανάδοχος</span>` : canAward ? `<button class="btn sm primary block" data-award="${b.bid_id}" data-name="${esc(b.company.name)}">Ανάθεση</button>` : ""}
-    </div>`).join("")}</div>
-
-  <div class="panel">
-    <div class="row wrap"><h2 class="grow">Σύγκριση ανά γραμμή</h2>
-      <div class="legend"><span class="lg lowest">χαμηλότερη</span><span class="lg outlier">±30% από διάμεσο</span><span class="lg missing">χωρίς τιμή</span></div></div>
-    <div class="table-wrap compare-wrap"><table class="tbl compare">
-      <thead><tr><th class="sticky-col">Α/Α</th><th class="sticky-col2">Περιγραφή</th><th>Μον.</th><th class="num">Ποσ.</th>
-        ${B.map((b) => `<th class="num bidder-col">${companyLink(b.company)}<small>τιμή μον. / σύνολο</small></th>`).join("")}
-        <th class="num">Διάμεσος</th></tr></thead>
-      <tbody>${data.rows.map((r) => r.is_section
-        ? `<tr class="section-row"><td class="sticky-col">${esc(r.code)}</td><td class="sticky-col2" colspan="${3 + B.length + 1}">${esc(r.description)}</td></tr>`
-        : `<tr><td class="sticky-col mono">${esc(r.code)}</td><td class="sticky-col2 desc">${esc(r.description)}</td><td>${esc(r.unit)}</td><td class="num mono">${fmt.num(r.quantity)}</td>
-          ${B.map((b) => {
-            const c = r.cells[b.bid_id] || r.cells[String(b.bid_id)] || {};
-            const cls = { lowest: "c-lowest", missing: "c-missing", outlier_high: "c-outlier", outlier_low: "c-outlier" }[c.flag] || "";
-            return `<td class="num mono ${cls}" ${c.note ? `title="${esc(c.note)}"` : ""}>${c.unit_price === null || c.unit_price === undefined ? "—" : `${fmt.money(c.unit_price)}<small>${fmt.money(c.line_total)}</small>`}${c.note ? " ✎" : ""}</td>`;
-          }).join("")}
-          <td class="num mono muted">${fmt.money(r.median)}</td></tr>`).join("")}
-      </tbody>
-      <tfoot><tr><td class="sticky-col"></td><td class="sticky-col2">Σύνολο</td><td></td><td></td>
-        ${B.map((b) => `<td class="num mono"><b>${fmt.money(b.total)}</b></td>`).join("")}<td></td></tr></tfoot>
-    </table></div>
-  </div>`;
-
-  el.querySelector("#xlsx").onclick = (e) => busy(e.target, () => download(`jobs/${job.id}/comparison/export`, `sygkrisi-${job.id}.xlsx`));
-  el.addEventListener("click", async (e) => {
-    const btn = e.target.closest("[data-award]");
-    if (!btn) return;
-    if (!(await confirmDialog(`Ανάθεση της εργασίας στην «${btn.dataset.name}»; Οι υπόλοιποι υπεργολάβοι θα ενημερωθούν ότι η εργασία ανατέθηκε.`, { ok: "Ανάθεση" }))) return;
-    busy(btn, async () => {
-      await api(`jobs/${job.id}/award`, { method: "POST", body: { bid_id: Number(btn.dataset.award) } });
-      toast("Η εργασία ανατέθηκε.", "ok");
-      dispatchEvent(new HashChangeEvent("hashchange"));
-    });
   });
 }

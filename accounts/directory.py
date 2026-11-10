@@ -68,7 +68,7 @@ def _stats(company):
     bids = user.bids.filter(status="submitted")
     return {
         "bids_submitted": bids.count(),
-        "jobs_won": sum(1 for b in bids.select_related("job") if b.job.awarded_bid_id == b.id),
+        "jobs_won": bids.filter(awards__isnull=False).values("job").distinct().count(),
     }
 
 

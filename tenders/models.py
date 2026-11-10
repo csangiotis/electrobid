@@ -56,6 +56,10 @@ class Job(models.Model):
     # Σημαίες για τις αυτόματες ειδοποιήσεις (να μη σταλούν δύο φορές)
     reminder_sent = models.BooleanField(default=False)
     opened_notified = models.BooleanField(default=False)
+    # Γύρος βελτιωμένης προσφοράς (BAFO) μετά τη λήξη: μόνο οι επιλεγμένοι αναθεωρούν τιμές
+    bafo_deadline = models.DateTimeField(null=True, blank=True)
+    bafo_message = models.TextField(blank=True)
+    bafo_closed_notified = models.BooleanField(default=False)
     awarded_bid = models.OneToOneField(
         "Bid", null=True, blank=True, on_delete=models.SET_NULL, related_name="+"
     )
@@ -75,10 +79,16 @@ class Job(models.Model):
         return bool(self.bid_deadline and timezone.now() >= self.bid_deadline)
 
     @property
+    def bafo_active(self):
+        return bool(self.status == self.Status.OPEN and self.bafo_deadline and timezone.now() < self.bafo_deadline)
+
+    @property
     def phase(self):
-        """Φάση όπως τη βλέπει ο χρήστης: draft / bidding / evaluation / awarded / cancelled."""
+        """Φάση όπως τη βλέπει ο χρήστης: draft / bidding / bafo / evaluation / awarded / cancelled."""
         if self.status == self.Status.OPEN:
-            return "evaluation" if self.deadline_passed else "bidding"
+            if not self.deadline_passed:
+                return "bidding"
+            return "bafo" if self.bafo_active else "evaluation"
         if self.status == self.Status.DRAFT:
             return "draft"
         return self.status
@@ -188,6 +198,10 @@ class Bid(models.Model):
     duration_days = models.PositiveIntegerField("χρόνος εκτέλεσης (ημέρες)", null=True, blank=True)
     validity_days = models.PositiveIntegerField("ισχύς προσφοράς (ημέρες)", default=60)
     job_revision = models.PositiveIntegerField(default=0)
+    # Ενότητες της προμέτρησης (id γραμμής-επικεφαλίδας, 0 = γραμμές πριν την πρώτη ενότητα) που ΔΕΝ τιμολογεί
+    excluded_sections = models.JSONField(default=list, blank=True)
+    bafo_invited = models.BooleanField(default=False)
+    bafo_submitted_at = models.DateTimeField(null=True, blank=True)
     submitted_at = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -195,6 +209,11 @@ class Bid(models.Model):
     class Meta:
         unique_together = [("job", "subcontractor")]
         ordering = ["-updated_at"]
+
+    def can_edit(self):
+        """Ανοιχτή για αλλαγές: πριν τη λήξη, ή στο BAFO αν έχει προσκληθεί."""
+        job = self.job
+        return job.accepts_bids or (job.bafo_active and self.bafo_invited and self.status == self.Status.SUBMITTED)
 
     def total(self):
         total = Decimal("0")
@@ -208,7 +227,37 @@ class BidLine(models.Model):
     bid = models.ForeignKey(Bid, on_delete=models.CASCADE, related_name="lines")
     item = models.ForeignKey(BOQItem, on_delete=models.CASCADE, related_name="bid_lines")
     unit_price = models.DecimalField(max_digits=14, decimal_places=2, null=True, blank=True)
+    # Τιμή του αρχικού γύρου (κρατιέται όταν ξεκινά BAFO)
+    original_unit_price = models.DecimalField(max_digits=14, decimal_places=2, null=True, blank=True)
     note = models.CharField(max_length=300, blank=True)
 
     class Meta:
         unique_together = [("bid", "item")]
+
+
+class Award(models.Model):
+    """Ανάθεση σε προσφορά, για όλη την εργασία (sections κενό) ή για συγκεκριμένες ενότητες."""
+
+    job = models.ForeignKey(Job, on_delete=models.CASCADE, related_name="awards")
+    bid = models.ForeignKey(Bid, on_delete=models.CASCADE, related_name="awards")
+    sections = models.JSONField(default=list, blank=True)
+    amount = models.DecimalField(max_digits=16, decimal_places=2)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["created_at"]
+
+
+def boq_sections(items):
+    """Ομαδοποίηση γραμμών σε ενότητες. Επιστρέφει [(section_id, code, title, [items])]."""
+    sections, current = [], [0, "", "Γενικά", []]
+    for it in items:
+        if it.is_section:
+            if current[3] or current[0]:
+                sections.append(tuple(current))
+            current = [it.id, it.code, it.description, []]
+        else:
+            current[3].append(it)
+    if current[3] or current[0]:
+        sections.append(tuple(current))
+    return [s for s in sections if s[3]]

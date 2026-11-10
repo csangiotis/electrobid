@@ -107,3 +107,11 @@ def invitation_declined(inv):
     notify([job.contractor], Kind.INVITATION, f"Απόρριψη πρόσκλησης: {job.title}",
            f"Η εταιρεία {inv.company.name} δεν θα δώσει προσφορά για «{job.title}».",
            f"#/jobs/{job.id}?tab=invites")
+
+
+def bafo_requested(job, bids):
+    msg = f"\n\nΜήνυμα εργολάβου: «{job.bafo_message}»" if job.bafo_message else ""
+    notify([b.subcontractor for b in bids], Kind.BAFO, f"Βελτιωμένη προσφορά: {job.title}",
+           f"Ο εργολάβος {_company(job.contractor)} σας ζητά βελτιωμένη τελική προσφορά για «{job.title}». "
+           f"Μπορείτε να αναθεωρήσετε τις τιμές σας έως {job.bafo_deadline:%d/%m/%Y %H:%M}.{msg}",
+           f"#/jobs/{job.id}?tab=bid", "Αναθεώρηση προσφοράς")

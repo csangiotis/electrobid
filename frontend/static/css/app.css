@@ -450,3 +450,23 @@ input.invalid { border-color: var(--bad); background: var(--bad-soft); }
 .vis-pick legend { font-size: .86rem; font-weight: 500; color: var(--ink-2); padding: 0 4px; }
 .vis-pick .check { color: var(--text); }
 .vis-pick .check input { width: auto; }
+
+/* ---- Ενότητες, BAFO ---- */
+.priced tr.excluded td { opacity: .45; }
+.priced tr.excluded td:last-child { font-style: italic; }
+.sec-toggle { display: inline-flex; flex-direction: row; gap: 6px; font-weight: 400; font-size: .8rem; color: var(--muted); margin-right: 10px; }
+.sec-toggle input { width: auto; }
+.sec-total { font-weight: 600; color: var(--ink); }
+.orig { display: block; color: var(--muted); font-size: .74rem; }
+s.orig { display: block; color: var(--muted); font-size: .74rem; }
+.c-excluded { background: #eef0f4; color: var(--muted); }
+.lg.excl::before { background: #eef0f4; border: 1px solid #d5d9e2; }
+.bafo-change { font-size: .82rem; color: var(--muted); margin-top: -4px; }
+.bafo-change b { color: var(--ok); }
+.bidder-facts .live { color: var(--live); font-weight: 500; }
+.sections-tbl td:first-child { min-width: 220px; }
+.total-line { text-align: right; margin: 0; }
+.stack.tight { gap: 6px; }
+
+.bell .count[hidden] { display: none; }
+[hidden] { display: none !important; }

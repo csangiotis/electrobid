@@ -10,7 +10,7 @@ from openpyxl import Workbook
 from rest_framework.test import APITestCase
 
 from accounts.models import Company, User
-from tenders.models import Job
+from tenders.models import Bid, Job
 
 TMP_MEDIA = tempfile.mkdtemp()
 
@@ -245,3 +245,100 @@ class AuthTests(APITestCase):
         self.assertEqual(r.status_code, 400)
         self.assertIn("company", r.data)
 
+
+
+def sectioned_job(gc):
+    job = Job.objects.create(contractor=gc, title="Η/Μ", region="attiki", trades=["plumbing", "power"],
+                             status=Job.Status.OPEN, bid_deadline=timezone.now() + timedelta(days=2))
+    rows = [("1", "ΗΛΕΚΤΡΟΛΟΓΙΚΑ", None), ("1.1", "Καλώδιο", 100), ("1.2", "Πρίζα", 10),
+            ("2", "ΥΔΡΑΥΛΙΚΑ", None), ("2.1", "Σωλήνας", 50)]
+    from tenders.models import BOQItem
+    items = [BOQItem.objects.create(job=job, position=i, code=c, description=d, unit="τεμ", quantity=q)
+             for i, (c, d, q) in enumerate(rows, 1)]
+    return job, items
+
+
+class SectionAwardBafoTests(APITestCase):
+    def setUp(self):
+        self.gc = make_user("gc@t.gr", User.Role.CONTRACTOR)
+        self.el = make_user("el@t.gr", User.Role.SUBCONTRACTOR)
+        self.pl = make_user("pl@t.gr", User.Role.SUBCONTRACTOR)
+        self.full = make_user("full@t.gr", User.Role.SUBCONTRACTOR)
+        self.job, items = sectioned_job(self.gc)
+        self.sec_el, self.sec_pl = items[0].id, items[3].id
+        self.cable, self.socket, self.pipe = items[1].id, items[2].id, items[4].id
+
+    def put(self, user, prices, excluded=()):
+        self.client.force_authenticate(user)
+        lines = [{"item": i, "unit_price": p} for i, p in prices.items()]
+        r = self.client.put(f"/api/jobs/{self.job.id}/my-bid",
+                            {"lines": lines, "excluded_sections": list(excluded) + [999]}, format="json")
+        self.assertEqual(r.status_code, 200, r.data)
+        self.assertNotIn(999, r.data["excluded_sections"])
+        return self.client.post(f"/api/jobs/{self.job.id}/my-bid/submit")
+
+    def close(self):
+        Job.objects.filter(id=self.job.id).update(bid_deadline=timezone.now() - timedelta(minutes=1))
+
+    def test_partial_bids_section_summary_and_split_award(self):
+        self.put(self.el, {self.cable: 2, self.socket: 10}, excluded=[self.sec_pl])      # 300 ηλεκτρ.
+        self.put(self.pl, {self.pipe: 5}, excluded=[self.sec_el])                         # 250 υδραυλ.
+        self.put(self.full, {self.cable: 3, self.socket: 12, self.pipe: 6})              # 420 + 300 = 720
+        self.close()
+        self.client.force_authenticate(self.gc)
+        data = self.client.get(f"/api/jobs/{self.job.id}/comparison").data
+        by = {b["company"]["name"]: b for b in data["bidders"]}
+        self.assertTrue(by["el"]["partial"])
+        self.assertEqual(by["el"]["missing_count"], 0)  # η εξαιρεμένη ενότητα δεν μετρά ως «χωρίς τιμή»
+        self.assertEqual(data["bidders"][0]["company"]["name"], "full")  # οι πλήρεις πρώτα
+        self.assertEqual(data["best_combination"]["total"], 550)
+        sec = {s["title"]: s for s in data["sections"]}
+        self.assertEqual(sec["ΗΛΕΚΤΡΟΛΟΓΙΚΑ"]["best_bid_id"], by["el"]["bid_id"])
+
+        # Δεν γίνεται να ανατεθεί ενότητα που δεν καλύπτεται, ούτε διπλή ενότητα
+        bad = self.client.post(f"/api/jobs/{self.job.id}/award", {"allocations": [
+            {"bid_id": by["el"]["bid_id"], "sections": [self.sec_pl]}]}, format="json")
+        self.assertEqual(bad.status_code, 400)
+        r = self.client.post(f"/api/jobs/{self.job.id}/award", {"allocations": [
+            {"bid_id": by["el"]["bid_id"], "sections": [self.sec_el]},
+            {"bid_id": by["pl"]["bid_id"], "sections": [self.sec_pl]}]}, format="json")
+        self.assertEqual(r.status_code, 200, r.data)
+        self.assertEqual(r.data["status"], "awarded")
+        self.assertEqual(sorted(a["amount"] for a in r.data["awarded"]["awards"]), [250, 300])
+        self.client.force_authenticate(self.el)
+        mine = self.client.get(f"/api/jobs/{self.job.id}").data["awarded"]
+        self.assertEqual(len(mine["awards"]), 1)  # βλέπει μόνο τη δική του ανάθεση
+        self.assertTrue(self.client.get("/api/my-bids").data[0]["won"])
+        self.client.force_authenticate(self.full)
+        self.assertFalse(self.client.get("/api/my-bids").data[0]["won"])
+
+    def test_bafo_round(self):
+        self.put(self.el, {self.cable: 2, self.socket: 10, self.pipe: 5})
+        self.put(self.full, {self.cable: 3, self.socket: 12, self.pipe: 6})
+        self.close()
+        self.client.force_authenticate(self.gc)
+        full_bid = Bid.objects.get(subcontractor=self.full).id
+        r = self.client.post(f"/api/jobs/{self.job.id}/bafo", {
+            "bid_ids": [full_bid], "message": "Τελική τιμή παρακαλώ",
+            "deadline": (timezone.now() + timedelta(days=1)).isoformat()}, format="json")
+        self.assertEqual(r.status_code, 200, r.data)
+        self.assertEqual(r.data["phase"], "bafo")
+        self.assertEqual(self.client.post(f"/api/jobs/{self.job.id}/award", {"bid_id": full_bid}, format="json").status_code, 400)
+
+        # Ο μη προσκεκλημένος δεν αλλάζει τίποτα· ο προσκεκλημένος αναθεωρεί
+        self.client.force_authenticate(self.el)
+        self.assertEqual(self.client.put(f"/api/jobs/{self.job.id}/my-bid", {"notes": "x"}, format="json").status_code, 400)
+        self.client.force_authenticate(self.full)
+        mine = self.client.get(f"/api/jobs/{self.job.id}/my-bid").data
+        self.assertTrue(mine["can_edit"])
+        self.put(self.full, {self.cable: 1.5, self.socket: 10, self.pipe: 5})
+        # Σφραγισμένο μέχρι τη λήξη του BAFO: ο εργολάβος βλέπει την αρχική τιμή
+        self.client.force_authenticate(self.gc)
+        data = self.client.get(f"/api/jobs/{self.job.id}/comparison").data
+        self.assertEqual({b["company"]["name"]: b["total"] for b in data["bidders"]}["full"], 720)
+        Job.objects.filter(id=self.job.id).update(bafo_deadline=timezone.now() - timedelta(minutes=1))
+        data = self.client.get(f"/api/jobs/{self.job.id}/comparison").data
+        full = next(b for b in data["bidders"] if b["company"]["name"] == "full")
+        self.assertEqual((full["total"], full["original_total"]), (500, 720))
+        self.assertEqual(data["bidders"][0]["company"]["name"], "full")
+        self.assertEqual(self.client.post(f"/api/jobs/{self.job.id}/award", {"bid_id": full_bid}, format="json").status_code, 200)

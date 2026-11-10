@@ -69,7 +69,7 @@ export async function marketView(main, _p, stale) {
 export async function myJobsView(main, _p, stale) {
   const jobs = await api("jobs?scope=mine");
   if (stale()) return;
-  const active = jobs.filter((j) => ["draft", "bidding", "evaluation"].includes(j.phase));
+  const active = jobs.filter((j) => ["draft", "bidding", "evaluation", "bafo"].includes(j.phase));
   const past = jobs.filter((j) => !active.includes(j));
   const count = (p) => jobs.filter((j) => j.phase === p).length;
 
@@ -84,7 +84,7 @@ export async function myJobsView(main, _p, stale) {
           <td class="num">${j.phase === "draft" ? "—" : j.bids_count}</td>
           <td class="actions">${j.phase === "draft"
             ? `<a class="btn sm" href="#/jobs/${j.id}/edit">Συνέχεια</a>`
-            : j.phase === "evaluation"
+            : j.phase === "evaluation" || j.phase === "bafo"
               ? `<a class="btn sm primary" href="#/jobs/${j.id}?tab=bids">Σύγκριση</a>`
               : `<a class="btn sm ghost" href="#/jobs/${j.id}">Άνοιγμα</a>`}</td>
         </tr>`).join("")}</tbody>
@@ -116,6 +116,7 @@ export async function myBidsView(main, _p, stale) {
     if (b.won === true) return `<span class="badge ok">Κερδίσατε</span>`;
     if (b.won === false) return `<span class="badge muted">Ανατέθηκε αλλού</span>`;
     if (b.job.phase === "evaluation") return `<span class="badge warn">Σε αξιολόγηση</span>`;
+    if (b.job.phase === "bafo") return `<a class="badge live" href="#/jobs/${b.job.id}?tab=bid">BAFO σε εξέλιξη</a>`;
     if (b.job.phase === "cancelled") return `<span class="badge muted">Ακυρώθηκε</span>`;
     return `<span class="muted small">Λήξη ${esc(timeLeft(b.job.bid_deadline))}</span>`;
   };

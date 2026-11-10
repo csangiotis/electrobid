@@ -66,6 +66,7 @@ const PHASES = {
   draft: ["Πρόχειρο", "muted"],
   bidding: ["Δέχεται προσφορές", "live"],
   evaluation: ["Αξιολόγηση", "warn"],
+  bafo: ["Βελτιωμένες προσφορές", "live"],
   awarded: ["Ανατέθηκε", "ok"],
   cancelled: ["Ακυρώθηκε", "muted"],
 };

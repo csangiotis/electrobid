@@ -1,9 +1,10 @@
 import os
 from datetime import timedelta
+from decimal import Decimal
 
 from django.conf import settings
 from django.db import transaction
-from django.db.models import Count, Exists, OuterRef, Q, Subquery
+from django.db.models import Count, Exists, F, OuterRef, Q, Subquery
 from django.http import FileResponse, HttpResponse
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
@@ -18,7 +19,7 @@ from accounts.textsearch import matches
 from . import events
 from .boq_import import BOQImportError, parse_boq
 from .comparison import build_comparison, comparison_xlsx
-from .models import Bid, BidLine, BOQItem, Job, JobDocument, JobInvitation, JobQuestion
+from .models import Award, Bid, BidLine, BOQItem, Job, JobDocument, JobInvitation, JobQuestion, boq_sections
 from .serializers import (
     BidSerializer, BidWriteSerializer, BOQItemSerializer,
     BOQWriteItemSerializer, JobDetailSerializer, JobDocumentSerializer,
@@ -212,15 +213,87 @@ class JobViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=["post"])
     def award(self, request, pk=None):
+        """
+        Ανάθεση. Είτε {"bid_id": N} για όλη την εργασία, είτε
+        {"allocations": [{"bid_id": N, "sections": [section_id, ...]}, ...]} ανά ενότητα.
+        """
         job = self._owned()
         if job.status != Job.Status.OPEN or not job.deadline_passed:
             raise ValidationError("Η ανάθεση γίνεται μετά τη λήξη της προθεσμίας.")
-        bid = get_object_or_404(job.bids, pk=request.data.get("bid_id"),
-                                status=Bid.Status.SUBMITTED)
-        job.awarded_bid = bid
-        job.status = Job.Status.AWARDED
-        job.save(update_fields=["awarded_bid", "status", "updated_at"])
-        events.job_awarded(job, [bid])
+        if job.bafo_active:
+            raise ValidationError("Περιμένετε να λήξει ο γύρος βελτιωμένων προσφορών.")
+        allocations = request.data.get("allocations")
+        if not allocations:
+            allocations = [{"bid_id": request.data.get("bid_id"), "sections": []}]
+        if not isinstance(allocations, list):
+            raise ValidationError("Μη έγκυρη ανάθεση.")
+
+        sections = boq_sections(list(job.boq_items.all()))
+        sec_items = {sid: its for sid, _, _, its in sections}
+        sec_title = {sid: title for sid, _, title, _ in sections}
+        used, awards = set(), []
+        whole = any(not a.get("sections") for a in allocations)
+        if whole and len(allocations) > 1:
+            raise ValidationError("Η ανάθεση όλης της εργασίας γίνεται σε έναν υπεργολάβο.")
+        for a in allocations:
+            bid = get_object_or_404(job.bids, pk=a.get("bid_id"), status=Bid.Status.SUBMITTED)
+            secs = [int(x) for x in (a.get("sections") or [])]
+            bad = [x for x in secs if x not in sec_items]
+            if bad:
+                raise ValidationError("Άγνωστη ενότητα στην ανάθεση.")
+            if used & set(secs):
+                raise ValidationError("Κάθε ενότητα ανατίθεται σε έναν μόνο υπεργολάβο.")
+            used |= set(secs)
+            prices = {ln.item_id: ln.unit_price for ln in bid.lines.all()}
+            scope = secs or list(sec_items)
+            amount = Decimal("0")
+            for sid in scope:
+                if sid in (bid.excluded_sections or []) and secs:
+                    raise ValidationError(f"Η προσφορά δεν καλύπτει την ενότητα «{sec_title[sid]}».")
+                for it in sec_items[sid]:
+                    up = prices.get(it.id)
+                    if up is None and secs:
+                        raise ValidationError(f"Η προσφορά δεν τιμολογεί πλήρως την ενότητα «{sec_title[sid]}».")
+                    amount += (up or 0) * it.quantity
+            awards.append((bid, secs, amount.quantize(Decimal("0.01"))))
+        with transaction.atomic():
+            created = [Award.objects.create(job=job, bid=b, sections=s, amount=amt) for b, s, amt in awards]
+            main = max(created, key=lambda a: a.amount)
+            job.awarded_bid = main.bid
+            job.status = Job.Status.AWARDED
+            job.save(update_fields=["awarded_bid", "status", "updated_at"])
+        for aw in created:
+            aw.bid._award_scope = (" (ενότητες: " + ", ".join(sec_title[s] for s in aw.sections) + ")") if aw.sections else ""
+        events.job_awarded(job, [aw.bid for aw in created])
+        return Response(JobDetailSerializer(self.get_object(), context={"request": request}).data)
+
+    @action(detail=True, methods=["post"])
+    def bafo(self, request, pk=None):
+        """Γύρος βελτιωμένης προσφοράς: {"bid_ids": [...], "deadline": ISO, "message": ""}."""
+        job = self._owned()
+        if job.status != Job.Status.OPEN or not job.deadline_passed:
+            raise ValidationError("Το BAFO ζητείται μετά τη λήξη της προθεσμίας.")
+        if job.bafo_active:
+            raise ValidationError("Υπάρχει ήδη ενεργός γύρος βελτιωμένων προσφορών.")
+        from rest_framework.fields import DateTimeField
+
+        deadline = DateTimeField().to_internal_value(request.data.get("deadline"))
+        if deadline <= timezone.now() + timedelta(hours=1):
+            raise ValidationError("Η προθεσμία πρέπει να είναι τουλάχιστον μία ώρα από τώρα.")
+        bids = list(job.bids.filter(pk__in=request.data.get("bid_ids") or [], status=Bid.Status.SUBMITTED))
+        if not bids:
+            raise ValidationError("Επιλέξτε τουλάχιστον μία προσφορά.")
+        with transaction.atomic():
+            job.bids.update(bafo_invited=False, bafo_submitted_at=None)
+            for b in bids:
+                b.lines.filter(original_unit_price=None).update(original_unit_price=F("unit_price"))
+                b.bafo_invited = True
+                b.save(update_fields=["bafo_invited"])
+            job.bafo_deadline = deadline
+            job.bafo_message = (request.data.get("message") or "").strip()[:2000]
+            job.bafo_closed_notified = False
+            job.save(update_fields=["bafo_deadline", "bafo_message", "bafo_closed_notified", "updated_at"])
+        events.bafo_requested(job, bids)
         return Response(JobDetailSerializer(self.get_object(), context={"request": request}).data)
 
     # --- Προμέτρηση -------------------------------------------------------
@@ -406,6 +479,7 @@ class JobViewSet(viewsets.ModelViewSet):
             })
         data = build_comparison(job)
         data["awarded_bid_id"] = job.awarded_bid_id
+        data["awarded_bid_ids"] = [a["bid_id"] for a in data["awards"]]
         return Response(data)
 
     @action(detail=True, methods=["get"], url_path="comparison/export")
@@ -430,11 +504,14 @@ class JobViewSet(viewsets.ModelViewSet):
         if request.method == "GET":
             return Response(BidSerializer(bid).data if bid else None)
 
-        self._check_can_bid(job, request.user)
+        self._check_can_bid(job, request.user, bid)
         s = BidWriteSerializer(data=request.data)
         s.is_valid(raise_exception=True)
         data = s.validated_data
         lines = data.pop("lines", None)
+        if "excluded_sections" in data:
+            valid = {sid for sid, *_ in boq_sections(list(job.boq_items.all()))}
+            data["excluded_sections"] = sorted({int(x) for x in data["excluded_sections"]} & valid)
         with transaction.atomic():
             if bid is None:
                 bid = Bid.objects.create(job=job, subcontractor=request.user)
@@ -443,8 +520,11 @@ class JobViewSet(viewsets.ModelViewSet):
             if bid.status == Bid.Status.WITHDRAWN:
                 bid.status = Bid.Status.DRAFT
             if bid.status == Bid.Status.SUBMITTED:
-                bid.submitted_at = timezone.now()
-                bid.job_revision = job.revision
+                if job.accepts_bids:
+                    bid.submitted_at = timezone.now()
+                    bid.job_revision = job.revision
+                else:  # BAFO
+                    bid.bafo_submitted_at = timezone.now()
             bid.save()
             if lines is not None:
                 valid_items = set(job.boq_items.exclude(quantity=None).values_list("id", flat=True))
@@ -461,14 +541,17 @@ class JobViewSet(viewsets.ModelViewSet):
     def submit_bid(self, request, pk=None):
         job = self.get_object()
         _require_subcontractor(request.user)
-        self._check_can_bid(job, request.user)
         _require_verified(request.user)
         bid = get_object_or_404(job.bids, subcontractor=request.user)
+        self._check_can_bid(job, request.user, bid)
         if not bid.lines.exclude(unit_price=None).exists():
             raise ValidationError("Συμπληρώστε τιμές πριν την υποβολή.")
-        bid.status = Bid.Status.SUBMITTED
-        bid.submitted_at = timezone.now()
-        bid.job_revision = job.revision
+        if job.accepts_bids:
+            bid.status = Bid.Status.SUBMITTED
+            bid.submitted_at = timezone.now()
+            bid.job_revision = job.revision
+        else:
+            bid.bafo_submitted_at = timezone.now()
         bid.save()
         return Response(BidSerializer(bid).data)
 
@@ -484,9 +567,12 @@ class JobViewSet(viewsets.ModelViewSet):
         return Response(BidSerializer(bid).data)
 
     @staticmethod
-    def _check_can_bid(job, user):
-        if not job.accepts_bids:
-            raise ValidationError("Η εργασία δεν δέχεται προσφορές.")
+    def _check_can_bid(job, user, bid=None):
+        if job.accepts_bids:
+            return
+        if bid is not None and bid.can_edit():
+            return
+        raise ValidationError("Η εργασία δεν δέχεται προσφορές.")
 
 
 class DocumentViewSet(mixins.DestroyModelMixin, viewsets.GenericViewSet):

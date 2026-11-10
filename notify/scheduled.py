@@ -41,6 +41,15 @@ def run(now=None):
         job.opened_notified = True
         job.save(update_fields=["opened_notified"])
         sent += 1
+    bafo_done = Job.objects.filter(status=Job.Status.OPEN, bafo_deadline__lte=now, bafo_closed_notified=False)
+    for job in bafo_done:
+        n = job.bids.filter(bafo_invited=True, bafo_submitted_at__isnull=False).count()
+        notify([job.contractor], Kind.BAFO, f"Έληξε το BAFO: {job.title}",
+               f"Ο γύρος βελτιωμένων προσφορών έληξε. Αναθεώρησαν {n} υπεργολάβοι. "
+               "Δείτε την τελική σύγκριση.", f"#/jobs/{job.id}?tab=bids", "Σύγκριση")
+        job.bafo_closed_notified = True
+        job.save(update_fields=["bafo_closed_notified"])
+        sent += 1
     return sent
 
 
